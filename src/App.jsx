@@ -2,15 +2,61 @@ import React, { useState } from "react";
 
 function App() {
   const [idJugador, setIdJugador] = useState("");
-  const [paqueteSeleccionado, setPaqueteSeleccionado] = useState(null);
+const [paqueteSeleccionado, setPaqueteSeleccionado] = useState(null);
+const [metodoPago, setMetodoPago] = useState("transfermovil");
 
   const paquetes = [
-    { diamantes: 100, precio: "2.00 USD" },
-    { diamantes: 310, precio: "5.00 USD" },
-    { diamantes: 520, precio: "8.00 USD" },
-    { diamantes: 1060, precio: "15.00 USD" },
-    { diamantes: 2180, precio: "30.00 USD" },
-    { diamantes: 5600, precio: "70.00 USD" },
+  {
+    diamantes: 100,
+    precios: {
+      transfermovil: "1,000 CUP",
+      saldo: "500 CUP",
+      mlc: "2 MLC",
+    },
+  },
+  {
+    diamantes: 310,
+    precios: {
+      transfermovil: "3,000 CUP",
+      saldo: "1,500 CUP",
+      mlc: "6 MLC",
+    },
+  },
+  {
+    diamantes: 520,
+    precios: {
+      transfermovil: "4,600 CUP",
+      saldo: "2,300 CUP",
+      mlc: "9 MLC",
+    },
+  },
+];const metodosPago = {
+  transfermovil: {
+    nombre: "📱 Transfermóvil",
+    datoLabel: "Número / cuenta para pagar",
+    dato: "9224069997729567",
+    instrucciones:
+      "Realiza la transferencia por el importe indicado y conserva el comprobante.",
+  },
+  saldo: {
+    nombre: "📲 Saldo móvil",
+    datoLabel: "Número al que debes transferir el saldo",
+    dato: "+5350504941",
+    instrucciones:
+      "Transfiere el importe indicado como saldo móvil y conserva la confirmación.",
+  },
+  mlc: {
+    nombre: "💳 MLC",
+    datoLabel: "Tarjeta MLC para el pago",
+    dato: "9225069997991604",
+    instrucciones:
+      "Realiza la transferencia por el importe indicado y conserva el comprobante.",
+  },
+};
+
+const precioActual = paqueteSeleccionado
+  ? paqueteSeleccionado.precios[metodoPago]
+  : null;
   ];
 
   const seleccionarPaquete = (paquete) => {
@@ -81,13 +127,55 @@ function App() {
                   <span style={styles.diamondIcon}>💎</span>
                   <strong>{paquete.diamantes}</strong>
                   <span style={styles.diamondText}>Diamantes</span>
-                  <span style={styles.price}>{paquete.precio}</span>
+                 
                 </button>
               );
             })}
           </div>
 
-          {paqueteSeleccionado && (
+          {paqueteSeleccionado && ({paqueteSeleccionado && (
+  <>
+    <h2 style={{ ...styles.heading, marginTop: "28px" }}>
+      💳 Método de pago
+    </h2>
+
+    <div style={styles.paymentGrid}>
+      {Object.entries(metodosPago).map(([key, metodo]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setMetodoPago(key)}
+          style={{
+            ...styles.paymentButton,
+            ...(metodoPago === key ? styles.paymentSelected : {}),
+          }}
+        >
+          {metodo.nombre}
+        </button>
+      ))}
+    </div>
+
+    <div style={styles.paymentInfo}>
+      <div style={styles.priceBox}>
+        <span>Precio a pagar</span>
+        <strong style={styles.bigPrice}>{precioActual}</strong>
+      </div>
+
+      <div style={styles.instructions}>
+        <strong>{metodosPago[metodoPago].nombre}</strong>
+        <p>{metodosPago[metodoPago].instrucciones}</p>
+
+        <span style={styles.dataLabel}>
+          {metodosPago[metodoPago].datoLabel}
+        </span>
+
+        <div style={styles.paymentData}>
+          {metodosPago[metodoPago].dato}
+        </div>
+      </div>
+    </div>
+  </>
+)}
             <div style={styles.summary}>
               <strong>Paquete seleccionado</strong>
               <span>
@@ -257,7 +345,71 @@ const styles = {
     fontSize: "17px",
     marginTop: "5px",
   },
+paymentGrid: {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: "10px",
+},
 
+paymentButton: {
+  padding: "14px",
+  borderRadius: "12px",
+  border: "1px solid #344a68",
+  background: "#18263a",
+  color: "#ffffff",
+  cursor: "pointer",
+  fontSize: "16px",
+  fontWeight: "700",
+  textAlign: "left",
+},
+
+paymentSelected: {
+  border: "2px solid #4da3ff",
+  background: "#18395d",
+},
+
+paymentInfo: {
+  marginTop: "18px",
+  borderRadius: "14px",
+  border: "1px solid #2e4564",
+  overflow: "hidden",
+},
+
+priceBox: {
+  padding: "18px",
+  background: "#0b1727",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "15px",
+},
+
+bigPrice: {
+  fontSize: "26px",
+},
+
+instructions: {
+  padding: "18px",
+  background: "#142238",
+},
+
+dataLabel: {
+  display: "block",
+  color: "#aebdd0",
+  fontSize: "13px",
+  marginTop: "12px",
+  marginBottom: "6px",
+},
+
+paymentData: {
+  padding: "13px",
+  borderRadius: "10px",
+  background: "#08111f",
+  border: "1px solid #40536e",
+  fontSize: "18px",
+  fontWeight: "800",
+  wordBreak: "break-all",
+},
   summary: {
     marginTop: "20px",
     padding: "15px",
