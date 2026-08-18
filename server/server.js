@@ -216,7 +216,50 @@ app.get("/api/services", async (req, res) => {
     });
   }
 });
+app.post("/api/check-id", async (req, res) => {
+  try {
+    const {
+      validation_code,
+      user_id,
+      server_id,
+    } = req.body;
 
+    if (!validation_code || !user_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "validation_code and user_id are required",
+      });
+    }
+
+    const body = {
+      validation_code,
+      user_id,
+    };
+
+    if (server_id) {
+      body.server_id = server_id;
+    }
+
+    const data = await flashTopupRequest(
+      "/check-id",
+      "POST",
+      body
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error(
+      "FlashTopup check-id error:",
+      error
+    );
+
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+      details: error.details || undefined,
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log(
     `Recargas Diamantes API listening on port ${PORT}`
