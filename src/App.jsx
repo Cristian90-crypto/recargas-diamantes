@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 
+const WHATSAPP_NUMBER = "5350504941";
+
 const games = {
   freeFire: {
     name: "Free Fire",
@@ -40,13 +42,15 @@ const games = {
 };
 
 const paymentMethods = [
-  { id: "transfer", name: "Transfermóvil", suffix: " CUP" },
-  { id: "saldo", name: "Saldo móvil", suffix: " CUP" },
-  { id: "mlc", name: "MLC", suffix: " MLC" },
+  { id: "transfer", name: "Transfermóvil" },
+  { id: "saldo", name: "Saldo móvil" },
+  { id: "mlc", name: "MLC" },
 ];
 
 function formatPrice(value) {
-  return Number.isInteger(value) ? value.toLocaleString("es-CU") : value.toFixed(2);
+  return Number.isInteger(value)
+    ? value.toLocaleString("es-CU")
+    : value.toFixed(2);
 }
 
 function App() {
@@ -69,9 +73,9 @@ function App() {
   const paymentName =
     paymentMethods.find((method) => method.id === payment)?.name || "";
 
-  const orderNumber = useMemo(() => {
-    return `RD-${Date.now().toString().slice(-8)}`;
-  }, [showOrder]);
+  const [orderNumber] = useState(
+    () => `RD-${Date.now().toString().slice(-8)}`
+  );
 
   function changeGame(value) {
     setGameId(value);
@@ -97,21 +101,33 @@ function App() {
     setShowOrder(true);
   }
 
-  function copyOrder() {
-    const text = [
-      `Pedido: ${orderNumber}`,
-      `Juego: ${game.name}`,
-      `Paquete: ${selectedPackage.amount}`,
-      `ID: ${playerId}`,
-      gameId === "mobileLegends" ? `Zone ID: ${zoneId}` : "",
-      `Método: ${paymentName}`,
-      `Precio: ${formatPrice(price)}${payment === "mlc" ? " MLC" : " CUP"}`,
+  function sendWhatsAppOrder() {
+    const priceText =
+      payment === "mlc"
+        ? `${formatPrice(price)} MLC`
+        : `${formatPrice(price)} CUP`;
+
+    const message = [
+      "🛒 NUEVO PEDIDO - RECARGAS DIAMANTES",
+      "",
+      `📋 Pedido: ${orderNumber}`,
+      `🎮 Juego: ${game.name}`,
+      `💎 Paquete: ${selectedPackage.amount}`,
+      `👤 ID del jugador: ${playerId}`,
+      gameId === "mobileLegends" ? `🆔 Zone ID: ${zoneId}` : "",
+      `💳 Método de pago: ${paymentName}`,
+      `💰 Total: ${priceText}`,
+      "",
+      "Hola, quiero realizar esta recarga. Por favor, indícame cómo continuar con el pago.",
     ]
       .filter(Boolean)
       .join("\n");
 
-    navigator.clipboard?.writeText(text);
-    alert("Datos del pedido copiados.");
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+      message
+    )}`;
+
+    window.location.href = url;
   }
 
   return (
@@ -129,8 +145,7 @@ function App() {
         }
 
         button,
-        input,
-        select {
+        input {
           font: inherit;
         }
 
@@ -336,15 +351,21 @@ function App() {
           border-bottom: 0;
         }
 
-        .copy {
-          margin-top: 15px;
+        .whatsapp {
+          width: 100%;
+          margin-top: 18px;
           border: 0;
-          border-radius: 12px;
-          padding: 13px 17px;
-          background: #172033;
+          border-radius: 14px;
+          padding: 16px;
+          background: #25d366;
           color: white;
-          font-weight: 800;
+          font-weight: 900;
+          font-size: 17px;
           cursor: pointer;
+        }
+
+        .whatsapp:hover {
+          background: #1ebe5d;
         }
 
         .contact {
@@ -362,16 +383,6 @@ function App() {
         .contact p {
           line-height: 1.5;
           color: #4b5563;
-        }
-
-        .contact-button {
-          display: inline-block;
-          text-decoration: none;
-          background: #111827;
-          color: white;
-          padding: 13px 20px;
-          border-radius: 12px;
-          font-weight: 800;
         }
 
         footer {
@@ -553,7 +564,7 @@ function App() {
               )}
 
               <div className="order-row">
-                <span>Pago</span>
+                <span>Método de pago</span>
                 <strong>{paymentName}</strong>
               </div>
 
@@ -565,22 +576,27 @@ function App() {
                 </strong>
               </div>
 
-              <button className="copy" type="button" onClick={copyOrder}>
-                📋 Copiar datos del pedido
+              <button
+                className="whatsapp"
+                type="button"
+                onClick={sendWhatsAppOrder}
+              >
+                📲 Enviar pedido por WhatsApp
               </button>
             </section>
           )}
 
           <section className="contact">
             <h2>🎮 ¿Quieres recargar otro juego?</h2>
+
             <p>
               Si el juego que buscas no aparece en nuestra lista,
               contacta con el administrador y te ayudaremos con tu recarga.
             </p>
 
-            <a className="contact-button" href="mailto:admin@recargas-diamantes.com">
-              Contactar al administrador
-            </a>
+            <p>
+              📱 WhatsApp: <strong>+53 5050 4941</strong>
+            </p>
           </section>
         </div>
       </main>
