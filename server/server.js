@@ -165,6 +165,40 @@ app.get("/api/products", async (_req, res) => {
     });
   }
 });
+app.get("/api/services", async (req, res) => {
+  try {
+    const { product_code, product_type = "topup" } = req.query;
+
+    if (!product_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "product_code is required",
+      });
+    }
+
+    const path =
+      `/services?product_code=${encodeURIComponent(product_code)}` +
+      `&product_type=${encodeURIComponent(product_type)}`;
+
+    const data = await flashTopupRequest(
+      path,
+      "GET"
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error(
+      "FlashTopup services error:",
+      error
+    );
+
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+      details: error.details || undefined,
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log(
     `Recargas Diamantes API listening on port ${PORT}`
