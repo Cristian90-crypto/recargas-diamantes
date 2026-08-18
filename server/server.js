@@ -144,7 +144,27 @@ app.get("/api/profile", async (_req, res) => {
     });
   }
 });
+app.get("/api/products", async (_req, res) => {
+  try {
+    const data = await flashTopupRequest(
+      "/products",
+      "GET"
+    );
 
+    res.json(data);
+  } catch (error) {
+    console.error(
+      "FlashTopup products error:",
+      error
+    );
+
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+      details: error.details || undefined,
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log(
     `Recargas Diamantes API listening on port ${PORT}`
