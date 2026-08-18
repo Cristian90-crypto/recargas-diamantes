@@ -31,12 +31,22 @@ function createSignature({
   path,
   body,
 }) {
-  const payload =
-    `${timestamp}${nonce}${method.toUpperCase()}${path}${body || ""}`;
+  const bodyHash = crypto
+    .createHash("sha256")
+    .update(body || "")
+    .digest("hex");
+
+  const canonical = [
+    method.toUpperCase(),
+    path,
+    timestamp,
+    nonce,
+    bodyHash,
+  ].join("\n");
 
   return crypto
     .createHmac("sha256", API_KEY)
-    .update(payload)
+    .update(canonical)
     .digest("hex");
 }
 
@@ -47,7 +57,10 @@ async function flashTopupRequest(
 ) {
   checkCredentials();
 
-  const timestamp = Date.now().toString();
+  const timestamp = Math.floor(
+    Date.now() / 1000
+  ).toString();
+
   const nonce = crypto.randomUUID();
 
   const serializedBody = body
@@ -68,10 +81,10 @@ async function flashTopupRequest(
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-API-ID": API_ID,
-        "X-Timestamp": timestamp,
-        "X-Nonce": nonce,
-        "X-Signature": signature,
+        "X-FT-API-ID": API_ID,
+        "X-FT-Timestamp": timestamp,
+        "X-FT-Nonce": nonce,
+        "X-FT-Signature": signature,
       },
       body: serializedBody || undefined,
     }
@@ -103,24 +116,12 @@ async function flashTopupRequest(
   return data;
 }
 
-/*
-  Health check.
-  This does not contact FlashTopup.
-*/
-
 app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     service: "recargas-diamantes",
   });
 });
-
-/*
-  First FlashTopup test.
-
-  This only checks the reseller profile.
-  It does NOT create a recharge order.
-*/
 
 app.get("/api/profile", async (_req, res) => {
   try {
