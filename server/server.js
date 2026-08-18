@@ -67,19 +67,21 @@ async function flashTopupRequest(
     ? JSON.stringify(body)
     : "";
 
+  // FlashTopup requires the COMPLETE canonical path:
+  // /api/reseller/v2/...
   const canonicalPath =
-  path.split("?")[0];
+    `${BASE_URL.replace(
+      "https://api.flashtopup.com",
+      ""
+    )}${path.split("?")[0]}`;
 
-const signature = createSignature({
-  timestamp,
-  nonce,
-  method,
-  path: `${BASE_URL.replace(
-    "https://api.flashtopup.com",
-    ""
-  )}${canonicalPath}`,
-  body: serializedBody,
-});
+  const signature = createSignature({
+    timestamp,
+    nonce,
+    method,
+    path: canonicalPath,
+    body: serializedBody,
+  });
 
   const response = await fetch(
     `${BASE_URL}${path}`,
@@ -150,6 +152,7 @@ app.get("/api/profile", async (_req, res) => {
     });
   }
 });
+
 app.get("/api/products", async (_req, res) => {
   try {
     const data = await flashTopupRequest(
@@ -171,9 +174,13 @@ app.get("/api/products", async (_req, res) => {
     });
   }
 });
+
 app.get("/api/services", async (req, res) => {
   try {
-    const { product_code, product_type = "topup" } = req.query;
+    const {
+      product_code,
+      product_type = "topup",
+    } = req.query;
 
     if (!product_code) {
       return res.status(400).json({
@@ -183,8 +190,12 @@ app.get("/api/services", async (req, res) => {
     }
 
     const path =
-      `/services?product_code=${encodeURIComponent(product_code)}` +
-      `&product_type=${encodeURIComponent(product_type)}`;
+      `/services?product_code=${encodeURIComponent(
+        product_code
+      )}` +
+      `&product_type=${encodeURIComponent(
+        product_type
+      )}`;
 
     const data = await flashTopupRequest(
       path,
@@ -205,6 +216,7 @@ app.get("/api/services", async (req, res) => {
     });
   }
 });
+
 app.listen(PORT, () => {
   console.log(
     `Recargas Diamantes API listening on port ${PORT}`
