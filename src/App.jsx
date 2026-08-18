@@ -1,472 +1,595 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+
+const games = {
+  freeFire: {
+    name: "Free Fire",
+    icon: "🔥",
+    idLabel: "ID del jugador",
+    packages: [
+      { amount: "100 💎", transfer: 1000, saldo: 500, mlc: 2 },
+      { amount: "310 💎", transfer: 3000, saldo: 1500, mlc: 6 },
+      { amount: "520 💎", transfer: 4600, saldo: 2300, mlc: 9 },
+      { amount: "1,060 💎", transfer: 10100, saldo: 5000, mlc: 20 },
+      { amount: "2,180 💎", transfer: 20000, saldo: 10000, mlc: 40 },
+    ],
+  },
+
+  mobileLegends: {
+    name: "Mobile Legends",
+    icon: "⚔️",
+    idLabel: "ID del jugador",
+    zoneLabel: "Zone ID",
+    packages: [
+      { amount: "88 💎", transfer: 1100, saldo: 550, mlc: 2 },
+      { amount: "146 💎", transfer: 1650, saldo: 700, mlc: 3 },
+      { amount: "293 💎", transfer: 2750, saldo: 1250, mlc: 5.2 },
+      { amount: "586 💎", transfer: 5500, saldo: 2750, mlc: 10 },
+    ],
+  },
+
+  pubg: {
+    name: "PUBG Mobile",
+    icon: "🔫",
+    idLabel: "ID del jugador",
+    packages: [
+      { amount: "60 UC", transfer: 1000, saldo: 500, mlc: 2 },
+      { amount: "325 UC", transfer: 5120, saldo: 2500, mlc: 10 },
+      { amount: "660 UC", transfer: 10230, saldo: 5000, mlc: 20 },
+    ],
+  },
+};
+
+const paymentMethods = [
+  { id: "transfer", name: "Transfermóvil", suffix: " CUP" },
+  { id: "saldo", name: "Saldo móvil", suffix: " CUP" },
+  { id: "mlc", name: "MLC", suffix: " MLC" },
+];
+
+function formatPrice(value) {
+  return Number.isInteger(value) ? value.toLocaleString("es-CU") : value.toFixed(2);
+}
+
 function App() {
-  const [idJugador, setIdJugador] = useState("");
-  const [paqueteSeleccionado, setPaqueteSeleccionado] = useState(null);
-  const [metodoPago, setMetodoPago] = useState("transfermovil");
-  const [mostrarPago, setMostrarPago] = useState(false);
-  const paquetes = [
-    {
-      diamantes: 100,
-      precios: {
-        transfermovil: "1,000 CUP",
-        saldo: "500 CUP",
-        mlc: "2 MLC",
-      },
-    },
-    {
-      diamantes: 310,
-      precios: {
-        transfermovil: "3,000 CUP",
-        saldo: "1,500 CUP",
-        mlc: "6 MLC",
-      },
-    },
-    {
-      diamantes: 520,
-      precios: {
-        transfermovil: "4,600 CUP",
-        saldo: "2,300 CUP",
-        mlc: "9 MLC",
-      },
-    },
-  ];
-  const metodosPago = {
-    transfermovil: {
-      nombre: "📱 Transfermóvil",
-      datoLabel: "Número / cuenta para pagar",
-      dato: "9224069997729567",
-      instrucciones:
-        "Realiza la transferencia por el importe indicado y conserva el comprobante.",
-    },
-    saldo: {
-      nombre: "📲 Saldo móvil",
-      datoLabel: "Número al que debes transferir el saldo",
-      dato: "+5350504941",
-      instrucciones:
-        "Transfiere el importe indicado como saldo móvil y conserva la confirmación.",
-    },
-    mlc: {
-      nombre: "💳 MLC",
-      datoLabel: "Tarjeta MLC para el pago",
-      dato: "9225069997991604",
-      instrucciones:
-        "Realiza la transferencia por el importe indicado y conserva el comprobante.",
-    },
-  };
-  const precioActual = paqueteSeleccionado
-    ? paqueteSeleccionado.precios[metodoPago]
-    : null;
-  const seleccionarPaquete = (paquete) => {
-    setPaqueteSeleccionado(paquete);
-    setMostrarPago(true);
-  };
-  const volverAPaquetes = () => {
-    setMostrarPago(false);
-  };
-  const continuar = () => {
-    if (!idJugador.trim()) {
-      alert("Por favor, escribe tu ID de jugador.");
+  const [gameId, setGameId] = useState("freeFire");
+  const [playerId, setPlayerId] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [packageIndex, setPackageIndex] = useState(0);
+  const [payment, setPayment] = useState("transfer");
+  const [showOrder, setShowOrder] = useState(false);
+
+  const game = games[gameId];
+  const selectedPackage = game.packages[packageIndex];
+
+  const price = useMemo(() => {
+    if (payment === "transfer") return selectedPackage.transfer;
+    if (payment === "saldo") return selectedPackage.saldo;
+    return selectedPackage.mlc;
+  }, [selectedPackage, payment]);
+
+  const paymentName =
+    paymentMethods.find((method) => method.id === payment)?.name || "";
+
+  const orderNumber = useMemo(() => {
+    return `RD-${Date.now().toString().slice(-8)}`;
+  }, [showOrder]);
+
+  function changeGame(value) {
+    setGameId(value);
+    setPackageIndex(0);
+    setPlayerId("");
+    setZoneId("");
+    setShowOrder(false);
+  }
+
+  function submitOrder(event) {
+    event.preventDefault();
+
+    if (!playerId.trim()) {
+      alert("Por favor, introduce el ID del jugador.");
       return;
     }
-    if (!paqueteSeleccionado) {
-      alert("Selecciona primero un paquete de diamantes.");
+
+    if (gameId === "mobileLegends" && !zoneId.trim()) {
+      alert("Por favor, introduce el Zone ID.");
       return;
     }
-    alert(
-      `Pedido preparado:\n\n` +
-        `ID: ${idJugador}\n` +
-        `Diamantes: ${paqueteSeleccionado.diamantes}\n` +
-        `Método de pago: ${metodosPago[metodoPago].nombre}\n` +
-        `Precio: ${precioActual}`
-    );
-  };
+
+    setShowOrder(true);
+  }
+
+  function copyOrder() {
+    const text = [
+      `Pedido: ${orderNumber}`,
+      `Juego: ${game.name}`,
+      `Paquete: ${selectedPackage.amount}`,
+      `ID: ${playerId}`,
+      gameId === "mobileLegends" ? `Zone ID: ${zoneId}` : "",
+      `Método: ${paymentName}`,
+      `Precio: ${formatPrice(price)}${payment === "mlc" ? " MLC" : " CUP"}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    navigator.clipboard?.writeText(text);
+    alert("Datos del pedido copiados.");
+  }
+
   return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <div style={styles.logo}>💎</div>
-        <h1 style={styles.title}>Recargas Diamantes</h1>
-        <p style={styles.subtitle}>
-          Recarga tus diamantes de forma rápida y sencilla
-        </p>
+    <div className="app">
+      <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          font-family: Arial, Helvetica, sans-serif;
+          background: #f4f7fb;
+          color: #172033;
+        }
+
+        button,
+        input,
+        select {
+          font: inherit;
+        }
+
+        .app {
+          min-height: 100vh;
+        }
+
+        .hero {
+          background: linear-gradient(135deg, #111827, #2563eb);
+          color: white;
+          padding: 42px 20px 70px;
+        }
+
+        .container {
+          width: min(100%, 1050px);
+          margin: 0 auto;
+        }
+
+        .brand {
+          text-align: center;
+        }
+
+        .brand h1 {
+          margin: 0;
+          font-size: clamp(32px, 7vw, 54px);
+          font-weight: 900;
+        }
+
+        .brand p {
+          margin: 12px auto 0;
+          max-width: 650px;
+          font-size: 17px;
+          line-height: 1.5;
+          opacity: .9;
+        }
+
+        .card {
+          background: white;
+          border-radius: 22px;
+          padding: 24px;
+          box-shadow: 0 18px 50px rgba(15, 23, 42, .12);
+          margin-top: -35px;
+          position: relative;
+        }
+
+        .section {
+          margin-bottom: 28px;
+        }
+
+        .section h2 {
+          margin: 0 0 14px;
+          font-size: 21px;
+        }
+
+        .games {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+        }
+
+        .game {
+          border: 2px solid #e5e7eb;
+          background: #fff;
+          border-radius: 16px;
+          padding: 18px 12px;
+          cursor: pointer;
+          text-align: center;
+          transition: .2s;
+        }
+
+        .game:hover {
+          transform: translateY(-2px);
+        }
+
+        .game.active {
+          border-color: #2563eb;
+          background: #eff6ff;
+        }
+
+        .game-icon {
+          display: block;
+          font-size: 32px;
+          margin-bottom: 7px;
+        }
+
+        .game-name {
+          font-weight: 800;
+        }
+
+        label {
+          display: block;
+          font-weight: 700;
+          margin-bottom: 7px;
+        }
+
+        input {
+          width: 100%;
+          border: 1px solid #d1d5db;
+          border-radius: 12px;
+          padding: 14px;
+          outline: none;
+        }
+
+        input:focus {
+          border-color: #2563eb;
+        }
+
+        .two-columns {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+
+        .packages {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 10px;
+        }
+
+        .package {
+          border: 2px solid #e5e7eb;
+          background: white;
+          border-radius: 14px;
+          padding: 14px 8px;
+          cursor: pointer;
+          text-align: center;
+          font-weight: 800;
+        }
+
+        .package.active {
+          border-color: #2563eb;
+          background: #eff6ff;
+          color: #1d4ed8;
+        }
+
+        .payments {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+        }
+
+        .payment {
+          border: 2px solid #e5e7eb;
+          border-radius: 15px;
+          padding: 17px 10px;
+          cursor: pointer;
+          background: white;
+          text-align: center;
+        }
+
+        .payment.active {
+          border-color: #16a34a;
+          background: #f0fdf4;
+        }
+
+        .payment strong {
+          display: block;
+          margin-bottom: 5px;
+        }
+
+        .price {
+          font-size: 19px;
+          font-weight: 900;
+        }
+
+        .submit {
+          width: 100%;
+          border: 0;
+          border-radius: 15px;
+          background: #2563eb;
+          color: white;
+          padding: 17px;
+          font-size: 18px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .submit:hover {
+          background: #1d4ed8;
+        }
+
+        .order {
+          margin-top: 25px;
+          border-radius: 18px;
+          padding: 20px;
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+        }
+
+        .order h2 {
+          margin-top: 0;
+        }
+
+        .order-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 15px;
+          padding: 9px 0;
+          border-bottom: 1px solid #dcfce7;
+        }
+
+        .order-row:last-child {
+          border-bottom: 0;
+        }
+
+        .copy {
+          margin-top: 15px;
+          border: 0;
+          border-radius: 12px;
+          padding: 13px 17px;
+          background: #172033;
+          color: white;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .contact {
+          text-align: center;
+          margin-top: 28px;
+          padding: 25px;
+          background: #f8fafc;
+          border-radius: 18px;
+        }
+
+        .contact h2 {
+          margin-top: 0;
+        }
+
+        .contact p {
+          line-height: 1.5;
+          color: #4b5563;
+        }
+
+        .contact-button {
+          display: inline-block;
+          text-decoration: none;
+          background: #111827;
+          color: white;
+          padding: 13px 20px;
+          border-radius: 12px;
+          font-weight: 800;
+        }
+
+        footer {
+          text-align: center;
+          padding: 30px 15px;
+          color: #6b7280;
+          font-size: 14px;
+        }
+
+        @media (max-width: 800px) {
+          .games {
+            grid-template-columns: 1fr;
+          }
+
+          .packages {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .payments {
+            grid-template-columns: 1fr;
+          }
+
+          .two-columns {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <header className="hero">
+        <div className="container brand">
+          <h1>💎 Recargas Diamantes</h1>
+          <p>
+            Recarga tus juegos de forma rápida y sencilla.
+            Selecciona tu juego, paquete y método de pago.
+          </p>
+        </div>
       </header>
-      <main style={styles.container}>
-        <section style={styles.card}>
-          {!mostrarPago ? (
-            <>
-              <h2 style={styles.heading}>🎮 Free Fire</h2>
-              <label style={styles.label}>ID del jugador</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Ejemplo: 123456789"
-                value={idJugador}
-                onChange={(e) => setIdJugador(e.target.value)}
-                style={styles.input}
-              />
-              <p style={styles.help}>
-                Introduce el ID de la cuenta donde quieres recibir los
-                diamantes.
-              </p>
-              <h2 style={styles.heading}>💎 Elige tus diamantes</h2>
-              <div style={styles.grid}>
-                {paquetes.map((paquete) => {
-                  const seleccionado =
-                    paqueteSeleccionado?.diamantes === paquete.diamantes;
+
+      <main className="container">
+        <div className="card">
+          <form onSubmit={submitOrder}>
+            <section className="section">
+              <h2>🎮 Selecciona tu juego</h2>
+
+              <div className="games">
+                {Object.entries(games).map(([key, item]) => (
+                  <button
+                    type="button"
+                    className={`game ${gameId === key ? "active" : ""}`}
+                    key={key}
+                    onClick={() => changeGame(key)}
+                  >
+                    <span className="game-icon">{item.icon}</span>
+                    <span className="game-name">{item.name}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="section">
+              <h2>👤 Datos del jugador</h2>
+
+              <div className="two-columns">
+                <div>
+                  <label htmlFor="playerId">{game.idLabel}</label>
+                  <input
+                    id="playerId"
+                    value={playerId}
+                    onChange={(e) => setPlayerId(e.target.value)}
+                    placeholder="Introduce el ID"
+                  />
+                </div>
+
+                {gameId === "mobileLegends" && (
+                  <div>
+                    <label htmlFor="zoneId">{game.zoneLabel}</label>
+                    <input
+                      id="zoneId"
+                      value={zoneId}
+                      onChange={(e) => setZoneId(e.target.value)}
+                      placeholder="Introduce el Zone ID"
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="section">
+              <h2>💎 Selecciona tu paquete</h2>
+
+              <div className="packages">
+                {game.packages.map((item, index) => (
+                  <button
+                    type="button"
+                    key={item.amount}
+                    className={`package ${
+                      packageIndex === index ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setPackageIndex(index);
+                      setShowOrder(false);
+                    }}
+                  >
+                    {item.amount}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="section">
+              <h2>💳 Método de pago</h2>
+
+              <div className="payments">
+                {paymentMethods.map((method) => {
+                  const methodPrice =
+                    method.id === "transfer"
+                      ? selectedPackage.transfer
+                      : method.id === "saldo"
+                      ? selectedPackage.saldo
+                      : selectedPackage.mlc;
+
                   return (
                     <button
-                      key={paquete.diamantes}
                       type="button"
-                      onClick={() => seleccionarPaquete(paquete)}
-                      style={{
-                        ...styles.package,
-                        ...(seleccionado ? styles.selected : {}),
+                      key={method.id}
+                      className={`payment ${
+                        payment === method.id ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setPayment(method.id);
+                        setShowOrder(false);
                       }}
                     >
-                      <span style={styles.diamondIcon}>💎</span>
-                      <strong>{paquete.diamantes}</strong>
-                      <span style={styles.diamondText}>Diamantes</span>
-                      <span style={styles.chooseText}>
-                        Seleccionar →
+                      <strong>{method.name}</strong>
+                      <span className="price">
+                        {formatPrice(methodPrice)}
+                        {method.id === "mlc" ? " MLC" : " CUP"}
                       </span>
                     </button>
                   );
                 })}
               </div>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={volverAPaquetes}
-                style={styles.backButton}
-              >
-                ← Volver a elegir diamantes
-              </button>
-              <h2 style={styles.heading}>💎 Tu pedido</h2>
-              <div style={styles.summary}>
-                <strong>Paquete seleccionado</strong>
-                <span>
-                  💎 {paqueteSeleccionado.diamantes} diamantes
-                </span>
-                <span>
-                  🆔 ID: {idJugador || "No introducido todavía"}
-                </span>
+            </section>
+
+            <button className="submit" type="submit">
+              Continuar con el pedido →
+            </button>
+          </form>
+
+          {showOrder && (
+            <section className="order">
+              <h2>✅ Pedido preparado</h2>
+
+              <div className="order-row">
+                <span>Número de pedido</span>
+                <strong>{orderNumber}</strong>
               </div>
-              <h2 style={{ ...styles.heading, marginTop: "28px" }}>
-                💳 Selecciona tu método de pago
-              </h2>
-              <div style={styles.paymentGrid}>
-                {Object.entries(metodosPago).map(([key, metodo]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setMetodoPago(key)}
-                    style={{
-                      ...styles.paymentButton,
-                      ...(metodoPago === key
-                        ? styles.paymentSelected
-                        : {}),
-                    }}
-                  >
-                    <span>{metodo.nombre}</span>
-                    {metodoPago === key && (
-                      <span style={styles.check}>✓</span>
-                    )}
-                  </button>
-                ))}
+
+              <div className="order-row">
+                <span>Juego</span>
+                <strong>{game.name}</strong>
               </div>
-              <div style={styles.paymentInfo}>
-                <div style={styles.priceBox}>
-                  <span>Precio a pagar</span>
-                  <strong style={styles.bigPrice}>
-                    {precioActual}
-                  </strong>
+
+              <div className="order-row">
+                <span>Paquete</span>
+                <strong>{selectedPackage.amount}</strong>
+              </div>
+
+              <div className="order-row">
+                <span>ID</span>
+                <strong>{playerId}</strong>
+              </div>
+
+              {gameId === "mobileLegends" && (
+                <div className="order-row">
+                  <span>Zone ID</span>
+                  <strong>{zoneId}</strong>
                 </div>
-                <div style={styles.instructions}>
-                  <strong>
-                    {metodosPago[metodoPago].nombre}
-                  </strong>
-                  <p>{metodosPago[metodoPago].instrucciones}</p>
-                  <span style={styles.dataLabel}>
-                    {metodosPago[metodoPago].datoLabel}
-                  </span>
-                  <div style={styles.paymentData}>
-                    {metodosPago[metodoPago].dato}
-                  </div>
-                </div>
+              )}
+
+              <div className="order-row">
+                <span>Pago</span>
+                <strong>{paymentName}</strong>
               </div>
-              <button
-                type="button"
-                onClick={continuar}
-                style={styles.continueButton}
-              >
-                Confirmar pedido →
+
+              <div className="order-row">
+                <span>Total</span>
+                <strong>
+                  {formatPrice(price)}
+                  {payment === "mlc" ? " MLC" : " CUP"}
+                </strong>
+              </div>
+
+              <button className="copy" type="button" onClick={copyOrder}>
+                📋 Copiar datos del pedido
               </button>
-            </>
+            </section>
           )}
-        </section>
-        <section style={styles.infoCard}>
-          <h2 style={styles.heading}>¿Cómo funciona?</h2>
-          <div style={styles.step}>
-            <span style={styles.stepNumber}>1</span>
-            <p>Escribe tu ID de jugador.</p>
-          </div>
-          <div style={styles.step}>
-            <span style={styles.stepNumber}>2</span>
-            <p>Selecciona la cantidad de diamantes.</p>
-          </div>
-          <div style={styles.step}>
-            <span style={styles.stepNumber}>3</span>
-            <p>Selecciona tu método de pago.</p>
-          </div>
-          <div style={styles.step}>
-            <span style={styles.stepNumber}>4</span>
-            <p>Realiza el pago y conserva el comprobante.</p>
-          </div>
-        </section>
+
+          <section className="contact">
+            <h2>🎮 ¿Quieres recargar otro juego?</h2>
+            <p>
+              Si el juego que buscas no aparece en nuestra lista,
+              contacta con el administrador y te ayudaremos con tu recarga.
+            </p>
+
+            <a className="contact-button" href="mailto:admin@recargas-diamantes.com">
+              Contactar al administrador
+            </a>
+          </section>
+        </div>
       </main>
-      <footer style={styles.footer}>
-        <p>© 2026 Recargas Diamantes</p>
-        <p>Servicio de recargas digitales</p>
+
+      <footer>
+        © 2026 Recargas Diamantes · Servicio de recargas digitales
       </footer>
     </div>
   );
 }
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background:
-      "linear-gradient(180deg, #07111f 0%, #101827 45%, #070b12 100%)",
-    color: "#ffffff",
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
-  },
-  header: {
-    textAlign: "center",
-    padding: "45px 20px 35px",
-    background:
-      "linear-gradient(135deg, #0f1f36 0%, #172b4d 50%, #0c1728 100%)",
-    borderBottom: "1px solid #263a59",
-  },
-  logo: {
-    fontSize: "55px",
-    marginBottom: "8px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "34px",
-    fontWeight: "800",
-  },
-  subtitle: {
-    color: "#b9c7da",
-    fontSize: "16px",
-    marginTop: "10px",
-  },
-  container: {
-    maxWidth: "650px",
-    margin: "0 auto",
-    padding: "25px 15px 40px",
-  },
-  card: {
-    background: "#111c2d",
-    border: "1px solid #263a59",
-    borderRadius: "20px",
-    padding: "24px",
-    boxShadow: "0 15px 40px rgba(0,0,0,0.25)",
-  },
-  heading: {
-    fontSize: "21px",
-    margin: "5px 0 18px",
-  },
-  label: {
-    display: "block",
-    fontWeight: "600",
-    marginBottom: "8px",
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "15px",
-    borderRadius: "12px",
-    border: "1px solid #40536e",
-    background: "#08111f",
-    color: "#ffffff",
-    fontSize: "17px",
-    outline: "none",
-  },
-  help: {
-    color: "#8fa1b8",
-    fontSize: "13px",
-    lineHeight: "1.5",
-    marginTop: "8px",
-    marginBottom: "28px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: "12px",
-  },
-  package: {
-    minHeight: "145px",
-    padding: "16px 10px",
-    borderRadius: "15px",
-    border: "1px solid #344a68",
-    background: "#18263a",
-    color: "#ffffff",
-    cursor: "pointer",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "5px",
-    fontSize: "16px",
-  },
-  selected: {
-    border: "2px solid #4da3ff",
-    background: "#18395d",
-    transform: "scale(1.02)",
-  },
-  diamondIcon: {
-    fontSize: "32px",
-  },
-  diamondText: {
-    color: "#aebdd0",
-    fontSize: "13px",
-  },
-  chooseText: {
-    marginTop: "8px",
-    color: "#65b3ff",
-    fontSize: "13px",
-    fontWeight: "700",
-  },
-  backButton: {
-    width: "100%",
-    padding: "12px",
-    marginBottom: "20px",
-    border: "1px solid #344a68",
-    borderRadius: "10px",
-    background: "#18263a",
-    color: "#ffffff",
-    fontSize: "15px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  paymentGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: "10px",
-  },
-  paymentButton: {
-    padding: "15px",
-    borderRadius: "12px",
-    border: "1px solid #344a68",
-    background: "#18263a",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "16px",
-    fontWeight: "700",
-    textAlign: "left",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  paymentSelected: {
-    border: "2px solid #4da3ff",
-    background: "#18395d",
-  },
-  check: {
-    fontSize: "20px",
-    color: "#65b3ff",
-  },
-  paymentInfo: {
-    marginTop: "18px",
-    borderRadius: "14px",
-    border: "1px solid #2e4564",
-    overflow: "hidden",
-  },
-  priceBox: {
-    padding: "18px",
-    background: "#0b1727",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "15px",
-  },
-  bigPrice: {
-    fontSize: "26px",
-  },
-  instructions: {
-    padding: "18px",
-    background: "#142238",
-  },
-  dataLabel: {
-    display: "block",
-    color: "#aebdd0",
-    fontSize: "13px",
-    marginTop: "12px",
-    marginBottom: "6px",
-  },
-  paymentData: {
-    padding: "13px",
-    borderRadius: "10px",
-    background: "#08111f",
-    border: "1px solid #40536e",
-    fontSize: "18px",
-    fontWeight: "800",
-    wordBreak: "break-all",
-  },
-  summary: {
-    marginTop: "10px",
-    padding: "15px",
-    borderRadius: "12px",
-    background: "#0b1727",
-    border: "1px solid #2e4564",
-    display: "flex",
-    flexDirection: "column",
-    gap: "7px",
-  },
-  continueButton: {
-    width: "100%",
-    marginTop: "20px",
-    padding: "16px",
-    border: "none",
-    borderRadius: "12px",
-    background: "#2563eb",
-    color: "#ffffff",
-    fontSize: "17px",
-    fontWeight: "800",
-    cursor: "pointer",
-  },
-  infoCard: {
-    marginTop: "20px",
-    padding: "22px",
-    background: "#111c2d",
-    border: "1px solid #263a59",
-    borderRadius: "20px",
-  },
-  step: {
-    display: "flex",
-    alignItems: "center",
-    gap: "13px",
-    color: "#d5deea",
-    borderBottom: "1px solid #26364d",
-    padding: "11px 0",
-  },
-  stepNumber: {
-    minWidth: "30px",
-    height: "30px",
-    borderRadius: "50%",
-    background: "#2563eb",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: "800",
-  },
-  footer: {
-    textAlign: "center",
-    padding: "30px 15px",
-    color: "#718096",
-    fontSize: "13px",
-  },
-};
+
 export default App;
