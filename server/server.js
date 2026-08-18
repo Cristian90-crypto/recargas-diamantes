@@ -67,13 +67,19 @@ async function flashTopupRequest(
     ? JSON.stringify(body)
     : "";
 
-  const signature = createSignature({
-    timestamp,
-    nonce,
-    method,
-    path,
-    body: serializedBody,
-  });
+  const canonicalPath =
+  path.split("?")[0];
+
+const signature = createSignature({
+  timestamp,
+  nonce,
+  method,
+  path: `${BASE_URL.replace(
+    "https://api.flashtopup.com",
+    ""
+  )}${canonicalPath}`,
+  body: serializedBody,
+});
 
   const response = await fetch(
     `${BASE_URL}${path}`,
