@@ -22,10 +22,16 @@ const games = {
     idLabel: "ID del jugador",
     zoneLabel: "Zone ID",
     packages: [
-      { amount: "88 💎", transfer: 1100, saldo: 550, mlc: 2 },
-      { amount: "146 💎", transfer: 1650, saldo: 700, mlc: 3 },
-      { amount: "293 💎", transfer: 2750, saldo: 1250, mlc: 5.2 },
-      { amount: "586 💎", transfer: 5500, saldo: 2750, mlc: 10 },
+      { amount: "55 💎", transfer: 800, saldo: 400, mlc: 1.5 },
+      { amount: "86 💎", transfer: 1200, saldo: 600, mlc: 2 },
+      { amount: "165 💎", transfer: 2400, saldo: 1200, mlc: 4.5 },
+      { amount: "257 💎", transfer: 3500, saldo: 1750, mlc: 7 },
+      { amount: "343 💎", transfer: 4800, saldo: 2400, mlc: 9.5 },
+      { amount: "430 💎", transfer: 6200, saldo: 3100, mlc: 12.5 },
+      { amount: "600 💎", transfer: 8400, saldo: 4200, mlc: 17 },
+      { amount: "706 💎", transfer: 9700, saldo: 4850, mlc: 19.5 },
+      { amount: "878 💎", transfer: 12200, saldo: 6100, mlc: 24.5 },
+      { amount: "963 💎", transfer: 13300, saldo: 6650, mlc: 26.5 },
     ],
   },
 
@@ -35,8 +41,11 @@ const games = {
     idLabel: "ID del jugador",
     packages: [
       { amount: "60 UC", transfer: 1000, saldo: 500, mlc: 2 },
-      { amount: "325 UC", transfer: 5120, saldo: 2500, mlc: 10 },
-      { amount: "660 UC", transfer: 10230, saldo: 5000, mlc: 20 },
+      { amount: "325 UC", transfer: 5000, saldo: 2500, mlc: 10 },
+      { amount: "660 UC", transfer: 10000, saldo: 5000, mlc: 20 },
+      { amount: "1,800 UC", transfer: 25000, saldo: 12500, mlc: 50 },
+      { amount: "3,850 UC", transfer: 50000, saldo: 25000, mlc: 100 },
+      { amount: "8,100 UC", transfer: 100000, saldo: 50000, mlc: 200 },
     ],
   },
 };
@@ -517,6 +526,7 @@ function App() {
                       }}
                     >
                       <strong>{method.name}</strong>
+
                       <span className="price">
                         {formatPrice(methodPrice)}
                         {method.id === "mlc" ? " MLC" : " CUP"}
