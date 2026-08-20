@@ -276,10 +276,11 @@ app.get("/api/services", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error(
-      "FlashTopup services error:",
-      error
-    );
+    console.error("FlashTopup order error:", error.message);
+console.error(
+  "FlashTopup order details:",
+  JSON.stringify(error.details, null, 2)
+);
 
     res.status(
       error.status || 500
