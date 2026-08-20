@@ -307,7 +307,43 @@ function App() {
     setShowOrder(true);
   }
 
-  function sendWhatsAppOrder() {
+  async function sendWhatsAppOrder() {
+  try {
+    const referenceId = `RD-${Date.now()}`;
+
+    const orderData = {
+      service_code: selectedPackage.serviceCode,
+      reference_id: referenceId,
+      quantity: 1,
+      user_id: playerId.trim(),
+    };
+
+    if (gameId === "mobileLegends") {
+      orderData.server_id = zoneId.trim();
+    }
+
+    const response = await fetch(
+      "https://recargas-diamantes.onrender.com/api/order",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
+      }
+    );
+
+    const data = await response.json();
+
+    console.log("Respuesta de FlashTopup:", data);
+
+    if (!response.ok || data.success === false || data.ok === false) {
+      alert(
+        "No se pudo crear la orden. Revisa los datos e inténtalo nuevamente."
+      );
+      return;
+    }
+
     const priceText =
       payment === "mlc"
         ? `${formatPrice(price)} MLC`
@@ -316,11 +352,13 @@ function App() {
     const message = [
       "🛒 NUEVO PEDIDO - RECARGAS DIAMANTES",
       "",
-      `📋 Pedido: ${orderNumber}`,
+      `📋 Pedido: ${referenceId}`,
       `🎮 Juego: ${game.name}`,
       `💎 Paquete: ${selectedPackage.amount}`,
       `👤 ID del jugador: ${playerId}`,
-      gameId === "mobileLegends" ? `🆔 Zone ID: ${zoneId}` : "",
+      gameId === "mobileLegends"
+        ? `🆔 Zone ID: ${zoneId}`
+        : "",
       `💳 Método de pago: ${paymentName}`,
       `💰 Total: ${priceText}`,
       "",
@@ -334,8 +372,14 @@ function App() {
     )}`;
 
     window.location.href = url;
-  }
+  } catch (error) {
+    console.error("Error creando pedido:", error);
 
+    alert(
+      "No se pudo conectar con el servidor. Inténtalo nuevamente."
+    );
+  }
+}
   return (
     <div className="app">
       <style>{`
