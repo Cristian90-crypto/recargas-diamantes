@@ -3,14 +3,40 @@ import crypto from "crypto";
 
 const app = express();
 
-app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 const API_ID = process.env.FLASHTOPUP_API_ID;
 const API_KEY = process.env.FLASHTOPUP_API_KEY;
 
 const BASE_URL = "https://api.flashtopup.com/api/reseller/v2";
+
+/* =========================
+   CORS
+========================= */
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+app.use(express.json());
+
+/* =========================
+   CREDENCIALES
+========================= */
 
 function checkCredentials() {
   if (!API_ID || !API_KEY) {
@@ -23,6 +49,10 @@ function checkCredentials() {
     throw error;
   }
 }
+
+/* =========================
+   FIRMA FLASHTOPUP
+========================= */
 
 function createSignature({
   timestamp,
@@ -50,6 +80,10 @@ function createSignature({
     .digest("hex");
 }
 
+/* =========================
+   PETICIÓN A FLASHTOPUP
+========================= */
+
 async function flashTopupRequest(
   path,
   method = "GET",
@@ -67,8 +101,6 @@ async function flashTopupRequest(
     ? JSON.stringify(body)
     : "";
 
-  // FlashTopup requires the COMPLETE canonical path:
-  // /api/reseller/v2/...
   const canonicalPath =
     `${BASE_URL.replace(
       "https://api.flashtopup.com",
@@ -81,6 +113,12 @@ async function flashTopupRequest(
     method,
     path: canonicalPath,
     body: serializedBody,
+  });
+
+  console.log("FlashTopup request:", {
+    method,
+    path,
+    canonicalPath,
   });
 
   const response = await fetch(
@@ -110,6 +148,11 @@ async function flashTopupRequest(
     };
   }
 
+  console.log(
+    "FlashTopup HTTP status:",
+    response.status
+  );
+
   if (!response.ok) {
     const error = new Error(
       `FlashTopup API returned HTTP ${response.status}`
@@ -124,12 +167,20 @@ async function flashTopupRequest(
   return data;
 }
 
+/* =========================
+   HEALTH CHECK
+========================= */
+
 app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     service: "recargas-diamantes",
   });
 });
+
+/* =========================
+   PROFILE
+========================= */
 
 app.get("/api/profile", async (_req, res) => {
   try {
@@ -148,10 +199,14 @@ app.get("/api/profile", async (_req, res) => {
     res.status(error.status || 500).json({
       ok: false,
       error: error.message,
-      details: error.details || undefined,
+      details: error.details || null,
     });
   }
 });
+
+/* =========================
+   PRODUCTS
+========================= */
 
 app.get("/api/products", async (_req, res) => {
   try {
@@ -170,10 +225,14 @@ app.get("/api/products", async (_req, res) => {
     res.status(error.status || 500).json({
       ok: false,
       error: error.message,
-      details: error.details || undefined,
+      details: error.details || null,
     });
   }
 });
+
+/* =========================
+   SERVICES
+========================= */
 
 app.get("/api/services", async (req, res) => {
   try {
@@ -212,10 +271,15 @@ app.get("/api/services", async (req, res) => {
     res.status(error.status || 500).json({
       ok: false,
       error: error.message,
-      details: error.details || undefined,
+      details: error.details || null,
     });
   }
 });
+
+/* =========================
+   CHECK ID
+========================= */
+
 app.post("/api/check-id", async (req, res) => {
   try {
     const {
@@ -224,21 +288,33 @@ app.post("/api/check-id", async (req, res) => {
       server_id,
     } = req.body;
 
-    if (!validation_code || !user_id) {
+    if (!validation_code) {
       return res.status(400).json({
         ok: false,
-        error: "validation_code and user_id are required",
+        error: "validation_code is required",
+      });
+    }
+
+    if (!user_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "user_id is required",
       });
     }
 
     const body = {
       validation_code,
-      user_id,
+      user_id: String(user_id).trim(),
     };
 
     if (server_id) {
-      body.server_id = server_id;
+      body.server_id = String(server_id).trim();
     }
+
+    console.log(
+      "Check ID request:",
+      body
+    );
 
     const data = await flashTopupRequest(
       "/check-id",
@@ -256,12 +332,169 @@ app.post("/api/check-id", async (req, res) => {
     res.status(error.status || 500).json({
       ok: false,
       error: error.message,
-      details: error.details || undefined,
+      details: error.details || null,
     });
   }
 });
-app.listen(PORT, () => {
+
+/* =========================
+   CREATE ORDER
+========================= */
+
+app.post("/api/order", async (req, res) => {
+  try {
+    console.log(
+      "================================="
+    );
+
+    console.log(
+      "NUEVO PEDIDO RECIBIDO"
+    );
+
+    console.log(
+      "Datos recibidos:",
+      req.body
+    );
+
+    console.log(
+      "================================="
+    );
+
+    const {
+      service_code,
+      reference_id,
+      quantity = 1,
+      user_id,
+      server_id,
+    } = req.body;
+
+    /* VALIDACIONES */
+
+    if (!service_code) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: "service_code is required",
+      });
+    }
+
+    if (!reference_id) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: "reference_id is required",
+      });
+    }
+
+    if (!user_id) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: "user_id is required",
+      });
+    }
+
+    const finalQuantity = Number(quantity);
+
+    if (
+      !Number.isInteger(finalQuantity) ||
+      finalQuantity < 1
+    ) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: "quantity must be a positive integer",
+      });
+    }
+
+    /* CUERPO PARA FLASHTOPUP */
+
+    const body = {
+      service_code: String(
+        service_code
+      ).trim(),
+
+      reference_id: String(
+        reference_id
+      ).trim(),
+
+      quantity: finalQuantity,
+
+      user_id: String(
+        user_id
+      ).trim(),
+    };
+
+    if (server_id) {
+      body.server_id = String(
+        server_id
+      ).trim();
+    }
+
+    console.log(
+      "Enviando orden a FlashTopup:",
+      body
+    );
+
+    /* CREAR ORDEN */
+
+    const data = await flashTopupRequest(
+      "/order",
+      "POST",
+      body
+    );
+
+    console.log(
+      "Respuesta de FlashTopup:",
+      data
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error(
+      "FlashTopup order error:",
+      error
+    );
+
+    res.status(error.status || 500).json({
+      ok: false,
+      success: false,
+      error: error.message,
+      details: error.details || null,
+    });
+  }
+});
+
+/* =========================
+   RUTA NO ENCONTRADA
+========================= */
+
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "Route not found",
+    path: req.path,
+  });
+});
+
+/* =========================
+   INICIAR SERVIDOR
+========================= */
+
+app.listen(PORT, "0.0.0.0", () => {
   console.log(
     `Recargas Diamantes API listening on port ${PORT}`
+  );
+
+  console.log(
+    `PORT: ${PORT}`
+  );
+
+  console.log(
+    `FlashTopup API ID configured: ${Boolean(API_ID)}`
+  );
+
+  console.log(
+    `FlashTopup API KEY configured: ${Boolean(API_KEY)}`
   );
 });
