@@ -215,6 +215,67 @@ app.get("/api/services", async (req, res) => {
       details: error.details || undefined,
     });
   }
+});app.post("/api/order", async (req, res) => {
+  try {
+    const {
+      service_code,
+      reference_id,
+      quantity = 1,
+      user_id,
+      server_id,
+    } = req.body;
+
+    if (!service_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "service_code is required",
+      });
+    }
+
+    if (!reference_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "reference_id is required",
+      });
+    }
+
+    if (!user_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "user_id is required",
+      });
+    }
+
+    const body = {
+      service_code,
+      reference_id,
+      quantity,
+      user_id,
+    };
+
+    if (server_id) {
+      body.server_id = server_id;
+    }
+
+    const data = await flashTopupRequest(
+      "/order",
+      "POST",
+      body
+    );
+
+    res.json(data);
+  } catch (error) {
+    console.error(
+      "FlashTopup order error:",
+      error
+    );
+
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+      details: error.details || undefined,
+    });
+  }
 });
 app.post("/api/check-id", async (req, res) => {
   try {
