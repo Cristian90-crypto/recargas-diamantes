@@ -157,15 +157,20 @@ async function flashTopupRequest(
   );
 
   if (!response.ok) {
-    const error = new Error(
-      `FlashTopup API returned HTTP ${response.status}`
-    );
+  console.error("========== FLASHTOPUP ERROR ==========");
+  console.error("HTTP STATUS:", response.status);
+  console.error("RESPONSE:", JSON.stringify(data, null, 2));
+  console.error("======================================");
 
-    error.status = response.status;
-    error.details = data;
+  const error = new Error(
+    `FlashTopup API returned HTTP ${response.status}`
+  );
 
-    throw error;
-  }
+  error.status = response.status;
+  error.details = data;
+
+  throw error;
+}
 
   return data;
 }
