@@ -2,17 +2,6 @@ import express from "express";
 import crypto from "crypto";
 
 const app = express();
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, X-FT-API-ID, X-FT-Timestamp, X-FT-Nonce, X-FT-Signature");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
 
 const PORT = process.env.PORT || 10000;
 
@@ -27,13 +16,15 @@ const BASE_URL = "https://api.flashtopup.com/api/reseller/v2";
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
+
   res.header(
     "Access-Control-Allow-Methods",
     "GET,POST,PUT,PATCH,DELETE,OPTIONS"
   );
+
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
+    "Content-Type, Authorization, X-FT-API-ID, X-FT-Timestamp, X-FT-Nonce, X-FT-Signature"
   );
 
   if (req.method === "OPTIONS") {
@@ -62,7 +53,7 @@ function checkCredentials() {
 }
 
 /* =========================
-   FIRMA FLASHTOPUP
+   CREAR FIRMA
 ========================= */
 
 function createSignature({
@@ -126,11 +117,11 @@ async function flashTopupRequest(
     body: serializedBody,
   });
 
-  console.log("FlashTopup request:", {
+  console.log(
+    "FlashTopup request:",
     method,
-    path,
-    canonicalPath,
-  });
+    path
+  );
 
   const response = await fetch(
     `${BASE_URL}${path}`,
@@ -143,7 +134,8 @@ async function flashTopupRequest(
         "X-FT-Nonce": nonce,
         "X-FT-Signature": signature,
       },
-      body: serializedBody || undefined,
+      body:
+        serializedBody || undefined,
     }
   );
 
@@ -179,7 +171,7 @@ async function flashTopupRequest(
 }
 
 /* =========================
-   HEALTH CHECK
+   HEALTH
 ========================= */
 
 app.get("/health", (_req, res) => {
@@ -195,10 +187,11 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/profile", async (_req, res) => {
   try {
-    const data = await flashTopupRequest(
-      "/profile",
-      "GET"
-    );
+    const data =
+      await flashTopupRequest(
+        "/profile",
+        "GET"
+      );
 
     res.json(data);
   } catch (error) {
@@ -207,10 +200,13 @@ app.get("/api/profile", async (_req, res) => {
       error
     );
 
-    res.status(error.status || 500).json({
+    res.status(
+      error.status || 500
+    ).json({
       ok: false,
       error: error.message,
-      details: error.details || null,
+      details:
+        error.details || null,
     });
   }
 });
@@ -221,10 +217,11 @@ app.get("/api/profile", async (_req, res) => {
 
 app.get("/api/products", async (_req, res) => {
   try {
-    const data = await flashTopupRequest(
-      "/products",
-      "GET"
-    );
+    const data =
+      await flashTopupRequest(
+        "/products",
+        "GET"
+      );
 
     res.json(data);
   } catch (error) {
@@ -233,10 +230,13 @@ app.get("/api/products", async (_req, res) => {
       error
     );
 
-    res.status(error.status || 500).json({
+    res.status(
+      error.status || 500
+    ).json({
       ok: false,
       error: error.message,
-      details: error.details || null,
+      details:
+        error.details || null,
     });
   }
 });
@@ -255,7 +255,8 @@ app.get("/api/services", async (req, res) => {
     if (!product_code) {
       return res.status(400).json({
         ok: false,
-        error: "product_code is required",
+        error:
+          "product_code is required",
       });
     }
 
@@ -267,10 +268,11 @@ app.get("/api/services", async (req, res) => {
         product_type
       )}`;
 
-    const data = await flashTopupRequest(
-      path,
-      "GET"
-    );
+    const data =
+      await flashTopupRequest(
+        path,
+        "GET"
+      );
 
     res.json(data);
   } catch (error) {
@@ -279,10 +281,13 @@ app.get("/api/services", async (req, res) => {
       error
     );
 
-    res.status(error.status || 500).json({
+    res.status(
+      error.status || 500
+    ).json({
       ok: false,
       error: error.message,
-      details: error.details || null,
+      details:
+        error.details || null,
     });
   }
 });
@@ -302,36 +307,41 @@ app.post("/api/check-id", async (req, res) => {
     if (!validation_code) {
       return res.status(400).json({
         ok: false,
-        error: "validation_code is required",
+        error:
+          "validation_code is required",
       });
     }
 
     if (!user_id) {
       return res.status(400).json({
         ok: false,
-        error: "user_id is required",
+        error:
+          "user_id is required",
       });
     }
 
     const body = {
       validation_code,
-      user_id: String(user_id).trim(),
+      user_id:
+        String(user_id).trim(),
     };
 
     if (server_id) {
-      body.server_id = String(server_id).trim();
+      body.server_id =
+        String(server_id).trim();
     }
 
     console.log(
-      "Check ID request:",
+      "Check ID:",
       body
     );
 
-    const data = await flashTopupRequest(
-      "/check-id",
-      "POST",
-      body
-    );
+    const data =
+      await flashTopupRequest(
+        "/check-id",
+        "POST",
+        body
+      );
 
     res.json(data);
   } catch (error) {
@@ -340,10 +350,13 @@ app.post("/api/check-id", async (req, res) => {
       error
     );
 
-    res.status(error.status || 500).json({
+    res.status(
+      error.status || 500
+    ).json({
       ok: false,
       error: error.message,
-      details: error.details || null,
+      details:
+        error.details || null,
     });
   }
 });
@@ -379,13 +392,12 @@ app.post("/api/order", async (req, res) => {
       server_id,
     } = req.body;
 
-    /* VALIDACIONES */
-
     if (!service_code) {
       return res.status(400).json({
         ok: false,
         success: false,
-        error: "service_code is required",
+        error:
+          "service_code is required",
       });
     }
 
@@ -393,7 +405,8 @@ app.post("/api/order", async (req, res) => {
       return res.status(400).json({
         ok: false,
         success: false,
-        error: "reference_id is required",
+        error:
+          "reference_id is required",
       });
     }
 
@@ -401,45 +414,53 @@ app.post("/api/order", async (req, res) => {
       return res.status(400).json({
         ok: false,
         success: false,
-        error: "user_id is required",
+        error:
+          "user_id is required",
       });
     }
 
-    const finalQuantity = Number(quantity);
+    const finalQuantity =
+      Number(quantity);
 
     if (
-      !Number.isInteger(finalQuantity) ||
+      !Number.isInteger(
+        finalQuantity
+      ) ||
       finalQuantity < 1
     ) {
       return res.status(400).json({
         ok: false,
         success: false,
-        error: "quantity must be a positive integer",
+        error:
+          "quantity must be a positive integer",
       });
     }
 
-    /* CUERPO PARA FLASHTOPUP */
-
     const body = {
-      service_code: String(
-        service_code
-      ).trim(),
+      service_code:
+        String(
+          service_code
+        ).trim(),
 
-      reference_id: String(
-        reference_id
-      ).trim(),
+      reference_id:
+        String(
+          reference_id
+        ).trim(),
 
-      quantity: finalQuantity,
+      quantity:
+        finalQuantity,
 
-      user_id: String(
-        user_id
-      ).trim(),
+      user_id:
+        String(
+          user_id
+        ).trim(),
     };
 
     if (server_id) {
-      body.server_id = String(
-        server_id
-      ).trim();
+      body.server_id =
+        String(
+          server_id
+        ).trim();
     }
 
     console.log(
@@ -447,13 +468,12 @@ app.post("/api/order", async (req, res) => {
       body
     );
 
-    /* CREAR ORDEN */
-
-    const data = await flashTopupRequest(
-      "/order",
-      "POST",
-      body
-    );
+    const data =
+      await flashTopupRequest(
+        "/order",
+        "POST",
+        body
+      );
 
     console.log(
       "Respuesta de FlashTopup:",
@@ -467,11 +487,14 @@ app.post("/api/order", async (req, res) => {
       error
     );
 
-    res.status(error.status || 500).json({
+    res.status(
+      error.status || 500
+    ).json({
       ok: false,
       success: false,
       error: error.message,
-      details: error.details || null,
+      details:
+        error.details || null,
     });
   }
 });
@@ -492,20 +515,28 @@ app.use((req, res) => {
    INICIAR SERVIDOR
 ========================= */
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Recargas Diamantes API listening on port ${PORT}`
-  );
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `Recargas Diamantes API listening on port ${PORT}`
+    );
 
-  console.log(
-    `PORT: ${PORT}`
-  );
+    console.log(
+      `PORT: ${PORT}`
+    );
 
-  console.log(
-    `FlashTopup API ID configured: ${Boolean(API_ID)}`
-  );
+    console.log(
+      `FlashTopup API ID configured: ${Boolean(
+        API_ID
+      )}`
+    );
 
-  console.log(
-    `FlashTopup API KEY configured: ${Boolean(API_KEY)}`
-  );
-});
+    console.log(
+      `FlashTopup API KEY configured: ${Boolean(
+        API_KEY
+      )}`
+    );
+  }
+);
