@@ -3,48 +3,51 @@ import crypto from "crypto";
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
-// ======================================================
-// SHOP2TOPUP
-// ======================================================
 const SHOP2TOPUP_API_KEY = process.env.SHOP2TOPUP_API_KEY;
 const BASE_URL =
   "https://portal.shop2topup.com/api/endpoints/v1";
 // ======================================================
 // CONFIGURACIÓN DE PRECIOS
 // ======================================================
+// NO SE APLICA NINGÚN PORCENTAJE ADICIONAL.
 //
-// SELL_MARGIN_PERCENT:
-// Margen sobre el costo de Shop2TopUp.
+// Las tasas ya incluyen la ganancia que queremos.
 //
-// Ejemplo:
-// costo $10
-// margen 30%
-// venta = $13
-//
-// Puedes cambiarlo desde Render sin modificar este archivo.
-//
-// Si no existe la variable en Render, se usa 30%.
-//
-const SELL_MARGIN_PERCENT = Number(
-  process.env.SELL_MARGIN_PERCENT || 30
-);
-// Conversión de USD a CUP.
-// Puedes modificarla desde Render.
-//
-// Ejemplo:
-// 1 USD = 400 CUP
-//
-const USD_TO_CUP = Number(
-  process.env.USD_TO_CUP || 400
-);
-// 1 MLC se toma como 1 USD.
-// Puedes modificarlo desde Render si necesitas.
-//
-const USD_TO_MLC = Number(
-  process.env.USD_TO_MLC || 1
-);
+// Transfermóvil: 1 USD = 1,000 CUP
+// Saldo móvil:   1 USD =   500 CUP
+// MLC:           1 USD =     2 MLC
 // ======================================================
-// PRODUCTOS
+const PRICING = {
+  transfermovil_cup_per_usd: 1000,
+  saldo_movil_cup_per_usd: 500,
+  mlc_per_usd: 2,
+};
+// ======================================================
+// REDONDEO DE PRECIOS
+// ======================================================
+function roundMoney(value, decimals = 2) {
+  return Number(Number(value).toFixed(decimals));
+}
+function calculatePrices(costUsd) {
+  const cost = Number(costUsd);
+  const transfermovil = Math.round(
+    cost * PRICING.transfermovil_cup_per_usd
+  );
+  const saldoMovil = Math.round(
+    cost * PRICING.saldo_movil_cup_per_usd
+  );
+  const mlc = roundMoney(
+    cost * PRICING.mlc_per_usd,
+    2
+  );
+  return {
+    sale_cup_transfermovil: transfermovil,
+    sale_cup_saldo_movil: saldoMovil,
+    sale_mlc: mlc,
+  };
+}
+// ======================================================
+// CONFIGURACIÓN DE PRODUCTOS
 // ======================================================
 const PRODUCTS = {
   freefire: {
@@ -230,45 +233,9 @@ const PRODUCTS = {
   },
 };
 // ======================================================
-// FUNCIONES DE PRECIOS
+// PREPARAR PRODUCTOS CON PRECIOS DE VENTA
 // ======================================================
-function roundMoney(value, decimals = 2) {
-  return Number(Number(value).toFixed(decimals));
-}
-function calculateSalePrice(cost) {
-  const numericCost = Number(cost);
-  return roundMoney(
-    numericCost * (1 + SELL_MARGIN_PERCENT / 100),
-    2
-  );
-}
-function calculatePrices(cost) {
-  const numericCost = Number(cost);
-  const saleUsd = calculateSalePrice(numericCost);
-  const saleCup = Math.ceil(
-    saleUsd * USD_TO_CUP
-  );
-  const saleMlc = roundMoney(
-    saleUsd * USD_TO_MLC,
-    2
-  );
-  const profitUsd = roundMoney(
-    saleUsd - numericCost,
-    2
-  );
-  return {
-    cost_usd: numericCost.toFixed(6),
-    sale_usd: saleUsd.toFixed(2),
-    sale_cup: saleCup,
-    sale_mlc: saleMlc.toFixed(2),
-    profit_usd: profitUsd.toFixed(2),
-    margin_percent: SELL_MARGIN_PERCENT,
-  };
-}
-// ======================================================
-// PRODUCTOS PREPARADOS PARA LA TIENDA
-// ======================================================
-function getStoreProducts() {
+function getProductsWithPrices() {
   const result = {};
   for (const [gameKey, game] of Object.entries(PRODUCTS)) {
     result[gameKey] = {
@@ -280,12 +247,15 @@ function getStoreProducts() {
     for (const [packageKey, product] of Object.entries(
       game.packages
     )) {
-      const prices = calculatePrices(
-        product.cost_usd
-      );
+      const prices = calculatePrices(product.cost_usd);
       result[gameKey].packages[packageKey] = {
         ...product,
-        ...prices,
+        cost_usd: Number(product.cost_usd).toFixed(6),
+        sale_cup_transfermovil:
+          prices.sale_cup_transfermovil,
+        sale_cup_saldo_movil:
+          prices.sale_cup_saldo_movil,
+        sale_mlc: prices.sale_mlc,
       };
     }
   }
@@ -350,10 +320,7 @@ async function shop2topupRequest(
 // MANEJO DE ERRORES
 // ======================================================
 function sendError(res, error) {
-  console.error(
-    "SHOP2TOPUP ERROR:",
-    error
-  );
+  console.error("SHOP2TOPUP ERROR:", error);
   res.status(error.status || 500).json({
     ok: false,
     error: error.message,
@@ -378,28 +345,26 @@ app.get("/api/status", (_req, res) => {
     ok: true,
     service: "recargas-diamantes",
     provider: "SHOP2TOPUP",
-    api_configured:
-      Boolean(SHOP2TOPUP_API_KEY),
+    api_configured: Boolean(SHOP2TOPUP_API_KEY),
     base_url: BASE_URL,
     pricing: {
-      margin_percent:
-        SELL_MARGIN_PERCENT,
-      usd_to_cup:
-        USD_TO_CUP,
-      usd_to_mlc:
-        USD_TO_MLC,
+      transfermovil_cup_per_usd:
+        PRICING.transfermovil_cup_per_usd,
+      saldo_movil_cup_per_usd:
+        PRICING.saldo_movil_cup_per_usd,
+      mlc_per_usd:
+        PRICING.mlc_per_usd,
     },
   });
 });
 // ======================================================
-// CUENTA SHOP2TOPUP
+// PROBAR CUENTA SHOP2TOPUP
 // ======================================================
 app.get("/api/account", async (_req, res) => {
   try {
-    const data =
-      await shop2topupRequest(
-        "/account"
-      );
+    const data = await shop2topupRequest(
+      "/account"
+    );
     res.json({
       ok: true,
       data,
@@ -409,7 +374,7 @@ app.get("/api/account", async (_req, res) => {
   }
 });
 // ======================================================
-// CATÁLOGO SHOP2TOPUP
+// CATÁLOGO
 // ======================================================
 app.get(
   "/api/catalog/big-categories",
@@ -429,20 +394,16 @@ app.get(
   "/api/catalog/categories",
   async (req, res) => {
     try {
-      const query =
-        new URLSearchParams();
-      if (
-        req.query.big_category_id
-      ) {
+      const query = new URLSearchParams();
+      if (req.query.big_category_id) {
         query.set(
           "big_category_id",
           req.query.big_category_id
         );
       }
-      const suffix =
-        query.toString()
-          ? `?${query.toString()}`
-          : "";
+      const suffix = query.toString()
+        ? `?${query.toString()}`
+        : "";
       const data =
         await shop2topupRequest(
           `/catalog/categories${suffix}`
@@ -457,20 +418,16 @@ app.get(
   "/api/catalog/subcategories",
   async (req, res) => {
     try {
-      const query =
-        new URLSearchParams();
-      if (
-        req.query.category_id
-      ) {
+      const query = new URLSearchParams();
+      if (req.query.category_id) {
         query.set(
           "category_id",
           req.query.category_id
         );
       }
-      const suffix =
-        query.toString()
-          ? `?${query.toString()}`
-          : "";
+      const suffix = query.toString()
+        ? `?${query.toString()}`
+        : "";
       const data =
         await shop2topupRequest(
           `/catalog/subcategories${suffix}`
@@ -521,15 +478,14 @@ app.get("/api/products", (_req, res) => {
     ok: true,
     currency: "USD",
     pricing: {
-      margin_percent:
-        SELL_MARGIN_PERCENT,
-      usd_to_cup:
-        USD_TO_CUP,
-      usd_to_mlc:
-        USD_TO_MLC,
+      transfermovil_cup_per_usd:
+        PRICING.transfermovil_cup_per_usd,
+      saldo_movil_cup_per_usd:
+        PRICING.saldo_movil_cup_per_usd,
+      mlc_per_usd:
+        PRICING.mlc_per_usd,
     },
-    products:
-      getStoreProducts(),
+    products: getProductsWithPrices(),
   });
 });
 // ======================================================
@@ -542,8 +498,10 @@ app.get(
       req.params.game.toLowerCase();
     const packageKey =
       req.params.package;
+    const products =
+      getProductsWithPrices();
     const product =
-      PRODUCTS[game];
+      products[game];
     if (!product) {
       return res.status(404).json({
         ok: false,
@@ -558,274 +516,219 @@ app.get(
         error: "Paquete no encontrado.",
       });
     }
-    const prices =
-      calculatePrices(
-        selected.cost_usd
-      );
     res.json({
       ok: true,
       game,
-      game_name:
-        product.name,
-      package: {
-        ...selected,
-        ...prices,
-      },
+      game_name: product.name,
+      package: selected,
     });
   }
 );
 // ======================================================
 // VALIDAR JUGADOR
 // ======================================================
-app.post(
-  "/api/check-id",
-  async (req, res) => {
-    try {
-      const {
-        game,
-        player_id,
-        zone_id,
-        sub_category_id,
-      } = req.body;
-      if (!player_id) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "player_id es obligatorio.",
-        });
-      }
-      let subCategoryId =
-        Number(sub_category_id);
-      // Si no llega el ID del producto,
-      // lo buscamos según el juego.
-      if (
-        !subCategoryId &&
-        game
-      ) {
-        const product =
-          PRODUCTS[
-            String(game).toLowerCase()
-          ];
-        if (product) {
-          const firstPackage =
-            Object.values(
-              product.packages
-            )[0];
-          subCategoryId =
-            firstPackage.sub_category_id;
-        }
-      }
-      if (!subCategoryId) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "sub_category_id es obligatorio para validar el jugador.",
-        });
-      }
-      const body = {
-        sub_category_id:
-          subCategoryId,
-        player_id:
-          String(player_id),
-      };
-      if (
-        zone_id !== undefined &&
-        zone_id !== ""
-      ) {
-        body.zone_id =
-          String(zone_id);
-      }
-      const data =
-        await shop2topupRequest(
-          "/player/validate",
-          "POST",
-          body
-        );
-      res.json({
-        ok: true,
-        data,
+app.post("/api/check-id", async (req, res) => {
+  try {
+    const {
+      game,
+      player_id,
+      zone_id,
+      sub_category_id,
+    } = req.body;
+    if (!player_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "player_id es obligatorio.",
       });
-    } catch (error) {
-      sendError(res, error);
     }
+    let subCategoryId =
+      Number(sub_category_id);
+    if (!subCategoryId && game) {
+      const product =
+        PRODUCTS[
+          String(game).toLowerCase()
+        ];
+      if (product) {
+        const firstPackage =
+          Object.values(
+            product.packages
+          )[0];
+        subCategoryId =
+          firstPackage.sub_category_id;
+      }
+    }
+    if (!subCategoryId) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "sub_category_id es obligatorio para validar el jugador.",
+      });
+    }
+    const body = {
+      sub_category_id: subCategoryId,
+      player_id: String(player_id),
+    };
+    if (
+      zone_id !== undefined &&
+      zone_id !== ""
+    ) {
+      body.zone_id = String(zone_id);
+    }
+    const data =
+      await shop2topupRequest(
+        "/player/validate",
+        "POST",
+        body
+      );
+    res.json({
+      ok: true,
+      data,
+    });
+  } catch (error) {
+    sendError(res, error);
   }
-);
+});
 // ======================================================
 // CREAR ORDEN
 // ======================================================
-app.post(
-  "/api/order",
-  async (req, res) => {
-    try {
-      const {
-        game,
-        package: packageKey,
-        sub_category_id,
-        quantity = 1,
-        player_id,
-        zone_id,
-        expected_unit_price,
-        reference_id,
-      } = req.body;
-      if (!player_id) {
+app.post("/api/order", async (req, res) => {
+  try {
+    const {
+      game,
+      package: packageKey,
+      sub_category_id,
+      quantity = 1,
+      player_id,
+      zone_id,
+      expected_unit_price,
+      reference_id,
+    } = req.body;
+    if (!player_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "player_id es obligatorio.",
+      });
+    }
+    let subCategoryId =
+      Number(sub_category_id);
+    let expectedPrice =
+      expected_unit_price;
+    if (
+      !subCategoryId &&
+      game &&
+      packageKey
+    ) {
+      const product =
+        PRODUCTS[
+          String(game).toLowerCase()
+        ];
+      if (!product) {
         return res.status(400).json({
           ok: false,
-          error:
-            "player_id es obligatorio.",
+          error: "Juego no válido.",
         });
       }
-      let subCategoryId =
-        Number(sub_category_id);
-      let expectedPrice =
-        expected_unit_price;
-      let selectedProduct = null;
-      // --------------------------------------------------
-      // BUSCAR PRODUCTO
-      // --------------------------------------------------
-      if (
-        !subCategoryId &&
-        game &&
-        packageKey
-      ) {
-        const product =
-          PRODUCTS[
-            String(game).toLowerCase()
-          ];
-        if (!product) {
-          return res.status(400).json({
-            ok: false,
-            error:
-              "Juego no válido.",
-          });
-        }
-        selectedProduct =
-          product.packages[
-            String(packageKey)
-          ];
-        if (!selectedProduct) {
-          return res.status(400).json({
-            ok: false,
-            error:
-              "Paquete no válido.",
-          });
-        }
-        subCategoryId =
-          selectedProduct.sub_category_id;
-        // Usamos el costo real conocido
-        // como protección de precio.
-        if (
-          expectedPrice ===
-            undefined ||
-          expectedPrice === null ||
-          expectedPrice === ""
-        ) {
-          expectedPrice =
-            selectedProduct.cost_usd;
-        }
-      }
-      if (!subCategoryId) {
+      const selected =
+        product.packages[
+          String(packageKey)
+        ];
+      if (!selected) {
         return res.status(400).json({
           ok: false,
-          error:
-            "sub_category_id es obligatorio.",
+          error: "Paquete no válido.",
         });
       }
-      // --------------------------------------------------
-      // CANTIDAD
-      // --------------------------------------------------
-      const numericQuantity =
-        Number(quantity);
+      subCategoryId =
+        selected.sub_category_id;
       if (
-        !Number.isInteger(
-          numericQuantity
-        ) ||
-        numericQuantity <= 0
+        expectedPrice === undefined ||
+        expectedPrice === null ||
+        expectedPrice === ""
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "quantity debe ser un número entero mayor que 0.",
-        });
+        expectedPrice =
+          selected.cost_usd;
       }
-      // --------------------------------------------------
-      // REQUIREMENTS
-      // --------------------------------------------------
-      const requirements = {
-        player_id:
-          String(player_id),
-      };
-      if (
-        zone_id !== undefined &&
-        zone_id !== ""
-      ) {
-        requirements.zone_id =
-          String(zone_id);
-      }
-      // --------------------------------------------------
-      // ORDER ID
-      // --------------------------------------------------
-      const validUuid =
-        reference_id &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          String(reference_id)
-        );
-      const orderId =
-        validUuid
-          ? String(reference_id)
-          : crypto.randomUUID();
-      // --------------------------------------------------
-      // CREAR BODY
-      // --------------------------------------------------
-      const body = {
-        order_id:
-          orderId,
+    }
+    if (!subCategoryId) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "sub_category_id es obligatorio.",
+      });
+    }
+    const numericQuantity =
+      Number(quantity);
+    if (
+      !Number.isInteger(
+        numericQuantity
+      ) ||
+      numericQuantity <= 0
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "quantity debe ser un número entero mayor que 0.",
+      });
+    }
+    const requirements = {
+      player_id: String(player_id),
+    };
+    if (
+      zone_id !== undefined &&
+      zone_id !== ""
+    ) {
+      requirements.zone_id =
+        String(zone_id);
+    }
+    const orderId =
+      reference_id &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        String(reference_id)
+      )
+        ? String(reference_id)
+        : crypto.randomUUID();
+    const body = {
+      order_id: orderId,
+      sub_category_id:
+        subCategoryId,
+      quantity: numericQuantity,
+      requirements,
+    };
+    if (
+      expectedPrice !== undefined &&
+      expectedPrice !== null &&
+      expectedPrice !== ""
+    ) {
+      body.expected_unit_price =
+        String(expectedPrice);
+    }
+    console.log(
+      "Creating SHOP2TOPUP order:",
+      {
+        order_id: orderId,
         sub_category_id:
           subCategoryId,
-        quantity:
-          numericQuantity,
+        quantity: numericQuantity,
         requirements,
-      };
-      if (
-        expectedPrice !==
-          undefined &&
-        expectedPrice !== null &&
-        expectedPrice !== ""
-      ) {
-        body.expected_unit_price =
-          String(expectedPrice);
+        expected_unit_price:
+          body.expected_unit_price ||
+          null,
       }
-      console.log(
-        "Creating SHOP2TOPUP order:",
-        {
-          order_id:
-            orderId,
-          sub_category_id:
-            subCategoryId,
-          quantity:
-            numericQuantity,
-          requirements,
-          expected_unit_price:
-            body.expected_unit_price ||
-            null,
-        }
+    );
+    const data =
+      await shop2topupRequest(
+        "/orders/create",
+        "POST",
+        body
       );
-      const data =
-        await shop2topupRequest(
-          "/orders/create",
-          "POST",
-          body
-        );
-      res.json({
-        ok: true,
-        data,
-        order_id:
-          orderId,
-      });
-    } catch (error) {
-      sendError(res, error);
-    }
+    res.json({
+      ok: true,
+      data,
+    });
+  } catch (error) {
+    sendError(res, error);
   }
-);
+});
 // ======================================================
 // CONSULTAR ORDEN
 // ======================================================
@@ -851,23 +754,20 @@ app.get(
 // ======================================================
 // LISTAR ÓRDENES
 // ======================================================
-app.get(
-  "/api/orders",
-  async (_req, res) => {
-    try {
-      const data =
-        await shop2topupRequest(
-          "/orders"
-        );
-      res.json({
-        ok: true,
-        data,
-      });
-    } catch (error) {
-      sendError(res, error);
-    }
+app.get("/api/orders", async (_req, res) => {
+  try {
+    const data =
+      await shop2topupRequest(
+        "/orders"
+      );
+    res.json({
+      ok: true,
+      data,
+    });
+  } catch (error) {
+    sendError(res, error);
   }
-);
+});
 // ======================================================
 // CONSULTAR VARIAS ÓRDENES
 // ======================================================
@@ -875,13 +775,10 @@ app.post(
   "/api/orders/batch",
   async (req, res) => {
     try {
-      const {
-        order_ids,
-      } = req.body;
+      const { order_ids } =
+        req.body;
       if (
-        !Array.isArray(
-          order_ids
-        ) ||
+        !Array.isArray(order_ids) ||
         order_ids.length === 0
       ) {
         return res.status(400).json({
@@ -928,43 +825,33 @@ app.post(
   }
 );
 // ======================================================
-// 404
+// RUTA 404
 // ======================================================
-app.use(
-  (_req, res) => {
-    res.status(404).json({
-      ok: false,
-      error: "Ruta no encontrada.",
-    });
-  }
-);
+app.use((_req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "Ruta no encontrada.",
+  });
+});
 // ======================================================
 // INICIAR SERVIDOR
 // ======================================================
-app.listen(
-  PORT,
-  () => {
-    console.log(
-      `Recargas Diamantes API listening on port ${PORT}`
-    );
-    console.log(
-      `SHOP2TOPUP API: ${BASE_URL}`
-    );
-    console.log(
-      `SHOP2TOPUP_API_KEY: ${
-        SHOP2TOPUP_API_KEY
-          ? "CONFIGURADA"
-          : "NO CONFIGURADA"
-      }`
-    );
-    console.log(
-      `Margen de venta: ${SELL_MARGIN_PERCENT}%`
-    );
-    console.log(
-      `USD → CUP: ${USD_TO_CUP}`
-    );
-    console.log(
-      `USD → MLC: ${USD_TO_MLC}`
-    );
-  }
-);
+app.listen(PORT, () => {
+  console.log(
+    `Recargas Diamantes API listening on port ${PORT}`
+  );
+  console.log(
+    `SHOP2TOPUP API: ${BASE_URL}`
+  );
+  console.log(
+    `SHOP2TOPUP_API_KEY: ${
+      SHOP2TOPUP_API_KEY
+        ? "CONFIGURADA"
+        : "NO CONFIGURADA"
+    }`
+  );
+  console.log(
+    "PRECIOS:",
+    PRICING
+  );
+});
