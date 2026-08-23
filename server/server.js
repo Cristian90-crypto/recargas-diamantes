@@ -1,46 +1,66 @@
 import express from "express";
 import crypto from "crypto";
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const SHOP2TOPUP_API_KEY =
   process.env.SHOP2TOPUP_API_KEY;
-// SHOP2TOPUP
 const BASE_URL =
+  process.env.SHOP2TOPUP_BASE_URL ||
   "https://portal.shop2topup.com/api/endpoints/v1";
-// ======================================================
-// MIDDLEWARE
-// ======================================================
-app.use(express.json({ limit: "1mb" }));
-// CORS
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
-});
 // ======================================================
 // CONFIGURACIÓN DE PRECIOS
 // ======================================================
-//
-// cost = precio que SHOP2TOPUP nos cobra en USD.
-//
-// sale_cup = precio que nosotros cobramos al cliente
-// en CUP, cuando ya fue definido.
-//
-// sale_mlc = precio que nosotros cobramos en MLC,
-// cuando ya fue definido.
-//
-// sale_usd = precio de referencia en USD.
-//
+// Margen sobre el costo de Shop2TopUp.
+// 0.25 = 25%
+const PROFIT_MARGIN =
+  Number(process.env.PROFIT_MARGIN || 0.25);
+// Conversión utilizada para mostrar precios al cliente.
+const CUP_PER_USD =
+  Number(process.env.CUP_PER_USD || 1000);
+const MLC_PER_USD =
+  Number(process.env.MLC_PER_USD || 2);
+// ======================================================
+// FUNCIONES DE PRECIOS
+// ======================================================
+function roundMoney(value) {
+  return Math.round(value * 100) / 100;
+}
+function calculateSalePrice(costUsd) {
+  const cost = Number(costUsd);
+  if (!Number.isFinite(cost) || cost < 0) {
+    return {
+      cost_usd: "0.00",
+      sale_usd: "0.00",
+      profit_usd: "0.00",
+      sale_cup: 0,
+      sale_mlc: "0.00",
+    };
+  }
+  const saleUsd =
+    cost * (1 + PROFIT_MARGIN);
+  const profitUsd =
+    saleUsd - cost;
+  // CUP: redondear hacia arriba a 100 CUP
+  const saleCup =
+    Math.ceil(
+      (saleUsd * CUP_PER_USD) / 100
+    ) * 100;
+  // MLC: redondear a 0.10
+  const saleMlc =
+    Math.ceil(
+      (saleUsd * MLC_PER_USD) * 10
+    ) / 10;
+  return {
+    cost_usd: cost.toFixed(6),
+    sale_usd: saleUsd.toFixed(2),
+    profit_usd: profitUsd.toFixed(2),
+    sale_cup: saleCup,
+    sale_mlc: saleMlc.toFixed(2),
+  };
+}
+// ======================================================
+// CONFIGURACIÓN DE PRODUCTOS
 // ======================================================
 const PRODUCTS = {
   // ====================================================
@@ -55,45 +75,33 @@ const PRODUCTS = {
         diamonds: 100,
         sub_category_id: 732,
         cost_usd: "0.731179",
-        sale_usd: "1.00",
       },
       310: {
         diamonds: 310,
         sub_category_id: 733,
         cost_usd: "2.193538",
-        sale_usd: "3.00",
       },
       520: {
         diamonds: 520,
         sub_category_id: 734,
         cost_usd: "3.704107",
-        sale_usd: "5.00",
       },
       1060: {
         diamonds: 1060,
         sub_category_id: 735,
         cost_usd: "6.877907",
-        // Precio que tú habías establecido
-        sale_cup: 10100,
-        sale_mlc: 20,
-        sale_usd: "10.00",
       },
       2180: {
         diamonds: 2180,
         sub_category_id: 736,
         cost_usd: "13.659394",
-        // Precio que tú habías establecido
-        sale_cup: 20000,
-        sale_mlc: 40,
-        sale_usd: "20.00",
       },
       5600: {
         diamonds: 5600,
         sub_category_id: 737,
         cost_usd: "34.759141",
-        sale_usd: "50.00",
-      }
-    }
+      },
+    },
   },
   // ====================================================
   // MOBILE LEGENDS
@@ -103,7 +111,7 @@ const PRODUCTS = {
     slug: "mobilelegends",
     requirements: [
       "player_id",
-      "zone_id"
+      "zone_id",
     ],
     packages: {
       5: {
@@ -180,8 +188,8 @@ const PRODUCTS = {
         diamonds: 4830,
         sub_category_id: 644,
         cost_usd: "76.677412",
-      }
-    }
+      },
+    },
   },
   // ====================================================
   // PUBG MOBILE
@@ -245,10 +253,20 @@ const PRODUCTS = {
         uc: 40500,
         sub_category_id: 22,
         cost_usd: "446.862000",
-      }
-    }
-  }
+      },
+    },
+  },
 };
+// ======================================================
+// AGREGAR PRECIOS AUTOMÁTICAMENTE
+// ======================================================
+for (const game of Object.values(PRODUCTS)) {
+  for (const product of Object.values(game.packages)) {
+    const prices =
+      calculateSalePrice(product.cost_usd);
+    Object.assign(product, prices);
+  }
+}
 // ======================================================
 // COMPROBAR API KEY
 // ======================================================
@@ -276,48 +294,58 @@ async function shop2topupRequest(
       Accept: "application/json",
       Authorization:
         `Bearer ${SHOP2TOPUP_API_KEY}`,
-      "Content-Type": "application/json"
-    }
+      "Content-Type":
+        "application/json",
+    },
   };
   if (body !== undefined) {
-    options.body = JSON.stringify(body);
+    options.body =
+      JSON.stringify(body);
   }
-  const response = await fetch(
-    `${BASE_URL}${path}`,
-    options
-  );
-  const text = await response.text();
+  const response =
+    await fetch(
+      `${BASE_URL}${path}`,
+      options
+    );
+  const text =
+    await response.text();
   let data;
   try {
-    data = JSON.parse(text);
+    data =
+      JSON.parse(text);
   } catch {
     data = {
-      raw: text
+      raw: text,
     };
   }
   if (!response.ok) {
     const error = new Error(
       `SHOP2TOPUP API returned HTTP ${response.status}`
     );
-    error.status = response.status;
-    error.details = data;
+    error.status =
+      response.status;
+    error.details =
+      data;
     throw error;
   }
   return data;
 }
 // ======================================================
-// ERRORES
+// MANEJO DE ERRORES
 // ======================================================
 function sendError(res, error) {
   console.error(
     "SHOP2TOPUP ERROR:",
     error
   );
-  res.status(error.status || 500).json({
+  res.status(
+    error.status || 500
+  ).json({
     ok: false,
-    error: error.message,
+    error:
+      error.message,
     details:
-      error.details || null
+      error.details || null,
   });
 }
 // ======================================================
@@ -329,13 +357,23 @@ app.get("/health", (_req, res) => {
     service:
       "recargas-diamantes",
     provider:
-      "shop2topup"
+      "SHOP2TOPUP",
+    api_configured:
+      Boolean(SHOP2TOPUP_API_KEY),
+    base_url:
+      BASE_URL,
+    margin:
+      `${PROFIT_MARGIN * 100}%`,
+    cup_per_usd:
+      CUP_PER_USD,
+    mlc_per_usd:
+      MLC_PER_USD,
   });
 });
 // ======================================================
-// INFORMACIÓN DEL SERVIDOR
+// ESTADO DEL SERVIDOR
 // ======================================================
-app.get("/api/status", (_req, res) => {
+app.get("/api/status", async (_req, res) => {
   res.json({
     ok: true,
     service:
@@ -345,28 +383,42 @@ app.get("/api/status", (_req, res) => {
     api_configured:
       Boolean(SHOP2TOPUP_API_KEY),
     base_url:
-      BASE_URL
+      BASE_URL,
+    pricing: {
+      margin:
+        `${PROFIT_MARGIN * 100}%`,
+      cup_per_usd:
+        CUP_PER_USD,
+      mlc_per_usd:
+        MLC_PER_USD,
+    },
   });
 });
 // ======================================================
-// CUENTA / SALDO SHOP2TOPUP
+// CUENTA SHOP2TOPUP
 // ======================================================
-app.get("/api/account", async (_req, res) => {
-  try {
-    const data =
-      await shop2topupRequest(
-        "/account"
+app.get(
+  "/api/account",
+  async (_req, res) => {
+    try {
+      const data =
+        await shop2topupRequest(
+          "/account"
+        );
+      res.json({
+        ok: true,
+        data,
+      });
+    } catch (error) {
+      sendError(
+        res,
+        error
       );
-    res.json({
-      ok: true,
-      data
-    });
-  } catch (error) {
-    sendError(res, error);
+    }
   }
-});
+);
 // ======================================================
-// CATÁLOGO
+// CATÁLOGO SHOP2TOPUP
 // ======================================================
 app.get(
   "/api/catalog/big-categories",
@@ -378,7 +430,10 @@ app.get(
         );
       res.json(data);
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -406,7 +461,10 @@ app.get(
         );
       res.json(data);
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -434,7 +492,10 @@ app.get(
         );
       res.json(data);
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -450,7 +511,10 @@ app.get(
         );
       res.json(data);
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -466,7 +530,10 @@ app.get(
         );
       res.json(data);
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -478,10 +545,17 @@ app.get(
   (_req, res) => {
     res.json({
       ok: true,
-      currency:
-        "USD",
+      currency: "USD",
+      pricing: {
+        margin:
+          `${PROFIT_MARGIN * 100}%`,
+        cup_per_usd:
+          CUP_PER_USD,
+        mlc_per_usd:
+          MLC_PER_USD,
+      },
       products:
-        PRODUCTS
+        PRODUCTS,
     });
   }
 );
@@ -501,16 +575,18 @@ app.get(
       return res.status(404).json({
         ok: false,
         error:
-          "Juego no encontrado."
+          "Juego no encontrado.",
       });
     }
     const selected =
-      product.packages[packageKey];
+      product.packages[
+        packageKey
+      ];
     if (!selected) {
       return res.status(404).json({
         ok: false,
         error:
-          "Paquete no encontrado."
+          "Paquete no encontrado.",
       });
     }
     res.json({
@@ -519,7 +595,7 @@ app.get(
       game_name:
         product.name,
       package:
-        selected
+        selected,
     });
   }
 );
@@ -534,20 +610,17 @@ app.post(
         game,
         player_id,
         zone_id,
-        sub_category_id
+        sub_category_id,
       } = req.body;
       if (!player_id) {
         return res.status(400).json({
           ok: false,
           error:
-            "player_id es obligatorio."
+            "player_id es obligatorio.",
         });
       }
       let subCategoryId =
         Number(sub_category_id);
-      // Si no mandan ID del producto,
-      // intentamos utilizar el primer
-      // paquete del juego.
       if (
         !subCategoryId &&
         game
@@ -569,14 +642,14 @@ app.post(
         return res.status(400).json({
           ok: false,
           error:
-            "sub_category_id es obligatorio."
+            "sub_category_id es obligatorio.",
         });
       }
       const body = {
         sub_category_id:
           subCategoryId,
         player_id:
-          String(player_id)
+          String(player_id),
       };
       if (
         zone_id !== undefined &&
@@ -585,10 +658,6 @@ app.post(
         body.zone_id =
           String(zone_id);
       }
-      console.log(
-        "Validating player:",
-        body
-      );
       const data =
         await shop2topupRequest(
           "/player/validate",
@@ -597,10 +666,13 @@ app.post(
         );
       res.json({
         ok: true,
-        data
+        data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -613,28 +685,21 @@ app.post(
     try {
       const {
         game,
-        package:
-          packageKey,
+        package: packageKey,
         sub_category_id,
         quantity = 1,
         player_id,
         zone_id,
         expected_unit_price,
-        reference_id
+        reference_id,
       } = req.body;
-      // -----------------------------------------------
-      // PLAYER ID
-      // -----------------------------------------------
       if (!player_id) {
         return res.status(400).json({
           ok: false,
           error:
-            "player_id es obligatorio."
+            "player_id es obligatorio.",
         });
       }
-      // -----------------------------------------------
-      // BUSCAR PRODUCTO
-      // -----------------------------------------------
       let subCategoryId =
         Number(sub_category_id);
       let expectedPrice =
@@ -652,7 +717,7 @@ app.post(
           return res.status(400).json({
             ok: false,
             error:
-              "Juego no válido."
+              "Juego no válido.",
           });
         }
         const selected =
@@ -663,7 +728,7 @@ app.post(
           return res.status(400).json({
             ok: false,
             error:
-              "Paquete no válido."
+              "Paquete no válido.",
           });
         }
         subCategoryId =
@@ -683,12 +748,9 @@ app.post(
         return res.status(400).json({
           ok: false,
           error:
-            "sub_category_id es obligatorio."
+            "sub_category_id es obligatorio.",
         });
       }
-      // -----------------------------------------------
-      // QUANTITY
-      // -----------------------------------------------
       const numericQuantity =
         Number(quantity);
       if (
@@ -700,17 +762,13 @@ app.post(
         return res.status(400).json({
           ok: false,
           error:
-            "quantity debe ser un número entero mayor que 0."
+            "quantity debe ser un número entero mayor que 0.",
         });
       }
-      // -----------------------------------------------
-      // REQUIREMENTS
-      // -----------------------------------------------
       const requirements = {
         player_id:
-          String(player_id)
+          String(player_id),
       };
-      // Mobile Legends necesita zone_id.
       if (
         zone_id !== undefined &&
         zone_id !== ""
@@ -718,9 +776,6 @@ app.post(
         requirements.zone_id =
           String(zone_id);
       }
-      // -----------------------------------------------
-      // UUID
-      // -----------------------------------------------
       const orderId =
         reference_id &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -729,9 +784,6 @@ app.post(
           )
           ? String(reference_id)
           : crypto.randomUUID();
-      // -----------------------------------------------
-      // REQUEST
-      // -----------------------------------------------
       const body = {
         order_id:
           orderId,
@@ -739,12 +791,11 @@ app.post(
           subCategoryId,
         quantity:
           numericQuantity,
-        requirements
+        requirements,
       };
-      // Price protection.
-      //
-      // Esto evita comprar automáticamente
-      // si SHOP2TOPUP sube el precio.
+      // IMPORTANTÍSIMO:
+      // Aquí usamos el COSTO de Shop2TopUp
+      // para proteger la compra.
       if (
         expectedPrice !==
           undefined &&
@@ -757,18 +808,7 @@ app.post(
       }
       console.log(
         "Creating SHOP2TOPUP order:",
-        {
-          order_id:
-            orderId,
-          sub_category_id:
-            subCategoryId,
-          quantity:
-            numericQuantity,
-          requirements,
-          expected_unit_price:
-            body.expected_unit_price ||
-            null
-        }
+        body
       );
       const data =
         await shop2topupRequest(
@@ -778,10 +818,13 @@ app.post(
         );
       res.json({
         ok: true,
-        data
+        data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -800,10 +843,13 @@ app.get(
         );
       res.json({
         ok: true,
-        data
+        data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -820,22 +866,25 @@ app.get(
         );
       res.json({
         ok: true,
-        data
+        data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 // ======================================================
-// VARIAS ÓRDENES
+// CONSULTAR VARIAS ÓRDENES
 // ======================================================
 app.post(
   "/api/orders/batch",
   async (req, res) => {
     try {
       const {
-        order_ids
+        order_ids,
       } = req.body;
       if (
         !Array.isArray(
@@ -846,7 +895,7 @@ app.post(
         return res.status(400).json({
           ok: false,
           error:
-            "order_ids debe ser un arreglo con al menos un ID."
+            "order_ids debe ser un arreglo con al menos un ID.",
         });
       }
       const data =
@@ -854,20 +903,23 @@ app.post(
           "/orders/batch",
           "POST",
           {
-            order_ids
+            order_ids,
           }
         );
       res.json({
         ok: true,
-        data
+        data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 // ======================================================
-// WEBHOOK SHOP2TOPUP
+// WEBHOOK
 // ======================================================
 app.post(
   "/api/webhook/shop2topup",
@@ -882,7 +934,7 @@ app.post(
     );
     res.status(200).json({
       ok: true,
-      received: true
+      received: true,
     });
   }
 );
@@ -894,26 +946,7 @@ app.use(
     res.status(404).json({
       ok: false,
       error:
-        "Ruta no encontrada."
-    });
-  }
-);
-// ======================================================
-// ERROR GLOBAL
-// ======================================================
-app.use(
-  (error, _req, res, _next) => {
-    console.error(
-      "SERVER ERROR:",
-      error
-    );
-    res.status(
-      error.status || 500
-    ).json({
-      ok: false,
-      error:
-        error.message ||
-        "Error interno del servidor"
+        "Ruta no encontrada.",
     });
   }
 );
@@ -935,6 +968,15 @@ app.listen(
           ? "CONFIGURADA"
           : "NO CONFIGURADA"
       }`
+    );
+    console.log(
+      `Margen: ${PROFIT_MARGIN * 100}%`
+    );
+    console.log(
+      `CUP/USD: ${CUP_PER_USD}`
+    );
+    console.log(
+      `MLC/USD: ${MLC_PER_USD}`
     );
   }
 );
