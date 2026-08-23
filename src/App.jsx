@@ -1,29 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 const API_BASE = "https://recargas-diamantes.onrender.com";
 const WHATSAPP_NUMBER = "5350504941";
+
 const GAME_INFO = {
   freefire: {
     name: "Free Fire",
     icon: "🔥",
     idLabel: "ID del jugador",
     requiresZone: false,
-    currencyLabel: "💎 Diamantes",
+    currency: "💎",
   },
   mobilelegends: {
     name: "Mobile Legends: Bang Bang",
     icon: "⚔️",
     idLabel: "ID del jugador",
     requiresZone: true,
-    currencyLabel: "💎 Diamantes",
+    currency: "💎",
   },
   pubg: {
     name: "PUBG Mobile",
     icon: "🎯",
     idLabel: "ID del jugador",
     requiresZone: false,
-    currencyLabel: "UC",
+    currency: "UC",
   },
 };
+
 const PAYMENT_METHODS = [
   {
     id: "transfermovil",
@@ -44,60 +47,204 @@ const PAYMENT_METHODS = [
     suffix: "MLC",
   },
 ];
+
 function formatCup(value) {
   return Math.round(Number(value || 0)).toLocaleString("es-CU");
 }
+
 function formatMlc(value) {
   return Number(value || 0).toFixed(2);
 }
+
 function getPackageLabel(gameKey, pack) {
   if (gameKey === "pubg") {
-    return `${Number(pack.uc).toLocaleString("es-CU")} UC`;
+    return `${Number(pack.uc || 0).toLocaleString("es-CU")} UC`;
   }
-  return `${Number(pack.diamonds).toLocaleString("es-CU")} 💎`;
+
+  return `${Number(pack.diamonds || 0).toLocaleString(
+    "es-CU"
+  )} 💎`;
 }
+
 function getPaymentPrice(pack, payment) {
   if (payment === "transfermovil") {
     return {
-      value: pack.sale_cup_transfermovil,
-      text: `${formatCup(pack.sale_cup_transfermovil)} CUP`,
+      value: Number(pack.sale_cup_transfermovil || 0),
+      text: `${formatCup(
+        pack.sale_cup_transfermovil
+      )} CUP`,
     };
   }
+
   if (payment === "saldo_movil") {
     return {
-      value: pack.sale_cup_saldo_movil,
-      text: `${formatCup(pack.sale_cup_saldo_movil)} CUP`,
+      value: Number(pack.sale_cup_saldo_movil || 0),
+      text: `${formatCup(
+        pack.sale_cup_saldo_movil
+      )} CUP`,
     };
   }
+
   return {
-    value: pack.sale_mlc,
+    value: Number(pack.sale_mlc || 0),
     text: `${formatMlc(pack.sale_mlc)} MLC`,
   };
 }
+
+async function fetchJson(url, options = {}, timeout = 30000) {
+  const controller = new AbortController();
+
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+
+    let data;
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(
+        `El servidor respondió algo que no es JSON. HTTP ${response.status}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+          data?.message ||
+          `Error HTTP ${response.status}`
+      );
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(
+        "La operación tardó demasiado. Inténtalo nuevamente."
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractPlayerName(data) {
+  const candidates = [
+    data?.data?.player?.player_name,
+    data?.data?.player?.name,
+    data?.data?.player_name,
+    data?.data?.name,
+    data?.player?.player_name,
+    data?.player?.name,
+    data?.player_name,
+    data?.name,
+  ];
+
+  return candidates.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() !== ""
+  );
+}
+
+function providerResponseFailed(data) {
+  if (data?.success === false) return true;
+  if (data?.data?.success === false) return true;
+  if (data?.data?.status === "failed") return true;
+  if (data?.status === "failed") return true;
+
+  return false;
+}
+
+function extractOrderId(data) {
+  return (
+    data?.data?.order_id ||
+    data?.data?.orderId ||
+    data?.order_id ||
+    data?.orderId ||
+    data?.data?.id ||
+    data?.id ||
+    ""
+  );
+}
+
 function App() {
   const [products, setProducts] = useState(null);
-  const [gameKey, setGameKey] = useState("freefire");
-  const [packageKey, setPackageKey] = useState("");
-  const [payment, setPayment] = useState("transfermovil");
-  const [playerId, setPlayerId] = useState("");
-  const [zoneId, setZoneId] = useState("");
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [loadingValidation, setLoadingValidation] = useState(false);
-  const [playerValidated, setPlayerValidated] = useState(false);
-  const [playerName, setPlayerName] = useState("");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [showOrder, setShowOrder] = useState(false);
+
+  const [gameKey, setGameKey] =
+    useState("freefire");
+
+  const [packageKey, setPackageKey] =
+    useState("");
+
+  const [payment, setPayment] =
+    useState("transfermovil");
+
+  const [playerId, setPlayerId] =
+    useState("");
+
+  const [zoneId, setZoneId] =
+    useState("");
+
+  const [playerValidated, setPlayerValidated] =
+    useState(false);
+
+  const [playerName, setPlayerName] =
+    useState("");
+
+  const [loadingProducts, setLoadingProducts] =
+    useState(true);
+
+  const [loadingValidation, setLoadingValidation] =
+    useState(false);
+
+  const [creatingOrder, setCreatingOrder] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [message, setMessage] =
+    useState("");
+
+  const [createdOrderId, setCreatedOrderId] =
+    useState("");
+
+  const [showOrder, setShowOrder] =
+    useState(false);
+
   const game = products?.[gameKey];
-  const packages = game?.packages || {};
-  const packageEntries = Object.entries(packages);
+
+  const packages =
+    game?.packages || {};
+
+  const packageEntries =
+    Object.entries(packages);
+
   const selectedPackage =
     packages[packageKey] ||
     packageEntries[0]?.[1] ||
     null;
+
   const selectedPackageKey =
-    packageKey || packageEntries[0]?.[0] || "";
-  const gameInfo = GAME_INFO[gameKey];
+    packageKey ||
+    packageEntries[0]?.[0] ||
+    "";
+
+  const gameInfo =
+    GAME_INFO[gameKey];
+
   const selectedPrice = useMemo(() => {
     if (!selectedPackage) {
       return {
@@ -105,14 +252,28 @@ function App() {
         text: "—",
       };
     }
-    return getPaymentPrice(selectedPackage, payment);
+
+    return getPaymentPrice(
+      selectedPackage,
+      payment
+    );
   }, [selectedPackage, payment]);
+
+  const selectedPayment =
+    PAYMENT_METHODS.find(
+      (item) => item.id === payment
+    );
+
   useEffect(() => {
     loadProducts();
   }, []);
+
   useEffect(() => {
     if (!game) return;
-    const firstPackage = Object.keys(game.packages || {})[0] || "";
+
+    const firstPackage =
+      Object.keys(game.packages || {})[0] || "";
+
     setPackageKey(firstPackage);
     setPlayerId("");
     setZoneId("");
@@ -120,207 +281,433 @@ function App() {
     setPlayerName("");
     setError("");
     setMessage("");
+    setCreatedOrderId("");
     setShowOrder(false);
   }, [gameKey, products]);
+
   async function loadProducts() {
     try {
       setLoadingProducts(true);
       setError("");
-      const response = await fetch(`${API_BASE}/api/products`);
-      const data = await response.json();
-      if (!response.ok || !data.ok) {
+
+      const data = await fetchJson(
+        `${API_BASE}/api/products`
+      );
+
+      if (!data?.ok || !data?.products) {
         throw new Error(
-          data.error || "No se pudieron cargar los productos."
+          data?.error ||
+            "No se pudieron cargar los productos."
         );
       }
+
       setProducts(data.products);
     } catch (err) {
       console.error(err);
+
       setError(
-        "No se pudieron cargar los productos. Comprueba que el servidor esté activo."
+        err.message ||
+          "No se pudieron cargar los productos. Comprueba que el servidor esté activo."
       );
     } finally {
       setLoadingProducts(false);
     }
   }
+
   function changeGame(value) {
     setGameKey(value);
   }
+
   function changePackage(value) {
     setPackageKey(value);
     setPlayerValidated(false);
     setPlayerName("");
+    setCreatedOrderId("");
     setError("");
     setMessage("");
     setShowOrder(false);
   }
+
+  function changePayment(value) {
+    setPayment(value);
+    setCreatedOrderId("");
+    setError("");
+    setMessage("");
+    setShowOrder(false);
+  }
+
   function changePlayerId(value) {
     setPlayerId(value);
     setPlayerValidated(false);
     setPlayerName("");
+    setCreatedOrderId("");
     setError("");
     setMessage("");
     setShowOrder(false);
   }
+
   function changeZoneId(value) {
     setZoneId(value);
     setPlayerValidated(false);
     setPlayerName("");
+    setCreatedOrderId("");
     setError("");
     setMessage("");
     setShowOrder(false);
   }
+
   async function validatePlayer() {
     setError("");
     setMessage("");
     setPlayerValidated(false);
     setPlayerName("");
+
     if (!playerId.trim()) {
       setError("Escribe el ID del jugador.");
       return;
     }
+
     if (!selectedPackage?.sub_category_id) {
-      setError("No se encontró el producto seleccionado.");
+      setError(
+        "No se encontró el producto seleccionado."
+      );
       return;
     }
-    if (gameInfo.requiresZone && !zoneId.trim()) {
-      setError("Escribe el Zone ID de tu cuenta.");
+
+    if (
+      gameInfo.requiresZone &&
+      !zoneId.trim()
+    ) {
+      setError(
+        "Escribe el Zone ID de tu cuenta."
+      );
       return;
     }
+
     try {
       setLoadingValidation(true);
+
       const body = {
         game: gameKey,
         player_id: playerId.trim(),
-        sub_category_id: selectedPackage.sub_category_id,
+        sub_category_id:
+          selectedPackage.sub_category_id,
       };
+
       if (gameInfo.requiresZone) {
         body.zone_id = zoneId.trim();
       }
-      const response = await fetch(`${API_BASE}/api/check-id`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok || data.ok === false) {
+
+      const data = await fetchJson(
+        `${API_BASE}/api/check-id`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (providerResponseFailed(data)) {
         throw new Error(
-          data.error || "No se pudo validar el jugador."
+          data?.error ||
+            data?.data?.error ||
+            "El proveedor no pudo validar este jugador."
         );
       }
-      const player =
-        data?.data?.player ||
-        data?.player ||
-        null;
+
+      const name =
+        extractPlayerName(data);
+
+      setPlayerName(
+        name ? String(name) : ""
+      );
+
       setPlayerValidated(true);
-      if (player?.player_name) {
-        setPlayerName(player.player_name);
-      } else if (player?.name) {
-        setPlayerName(player.name);
-      }
+
       setMessage(
-        player?.player_name || player?.name
-          ? `Jugador encontrado: ${
-              player.player_name || player.name
-            }`
+        name
+          ? `Jugador encontrado: ${name}`
           : "ID validado correctamente."
       );
     } catch (err) {
       console.error(err);
+
       setError(
         err.message ||
-          "No se pudo validar el jugador. Revisa el ID."
+          "No se pudo validar el jugador. Revisa los datos."
       );
     } finally {
       setLoadingValidation(false);
     }
   }
+
   function prepareOrder(event) {
     event.preventDefault();
+
     setError("");
     setMessage("");
+
+    if (!selectedPackage) {
+      setError(
+        "Selecciona un paquete."
+      );
+      return;
+    }
+
     if (!playerId.trim()) {
-      setError("Escribe el ID del jugador.");
+      setError(
+        "Escribe el ID del jugador."
+      );
       return;
     }
-    if (gameInfo.requiresZone && !zoneId.trim()) {
-      setError("Escribe el Zone ID.");
+
+    if (
+      gameInfo.requiresZone &&
+      !zoneId.trim()
+    ) {
+      setError(
+        "Escribe el Zone ID."
+      );
       return;
     }
+
     if (!playerValidated) {
       setError(
         "Primero debes validar el ID del jugador."
       );
       return;
     }
-    if (!selectedPackage) {
-      setError("Selecciona un paquete.");
-      return;
-    }
+
     setShowOrder(true);
   }
-  function sendWhatsAppOrder() {
-    if (!selectedPackage) return;
-    const referenceId =
-      `RD-${Date.now()}`;
-    const priceText = selectedPrice.text;
-    const lines = [
-      "🛒 *NUEVO PEDIDO - RECARGAS DIAMANTES*",
-      "",
-      `📋 Pedido: ${referenceId}`,
-      `🎮 Juego: ${gameInfo.name}`,
-      `💎 Paquete: ${getPackageLabel(
-        gameKey,
-        selectedPackage
-      )}`,
-      `👤 ID del jugador: ${playerId.trim()}`,
-    ];
-    if (gameInfo.requiresZone) {
-      lines.push(
-        `🆔 Zone ID: ${zoneId.trim()}`
+
+  async function createShop2TopupOrder() {
+    if (!selectedPackage) {
+      setError(
+        "No hay un paquete seleccionado."
       );
+      return;
     }
-    if (playerName) {
-      lines.push(
-        `👑 Nombre: ${playerName}`
+
+    if (!playerId.trim()) {
+      setError(
+        "Escribe el ID del jugador."
       );
+      return;
     }
-    lines.push(
-      `💳 Método de pago: ${
-        PAYMENT_METHODS.find(
-          (item) => item.id === payment
-        )?.name
-      }`,
-      `💰 Total: ${priceText}`,
-      "",
-      "✅ ID validado correctamente.",
-      "",
-      "Hola, quiero realizar esta recarga. Por favor, indícame cómo continuar con el pago."
-    );
-    const messageText = lines.join("\n");
-    const url =
-      `https://wa.me/${WHATSAPP_NUMBER}` +
-      `?text=${encodeURIComponent(messageText)}`;
-    window.location.href = url;
+
+    if (
+      gameInfo.requiresZone &&
+      !zoneId.trim()
+    ) {
+      setError(
+        "Escribe el Zone ID."
+      );
+      return;
+    }
+
+    if (!playerValidated) {
+      setError(
+        "Primero debes validar el ID del jugador."
+      );
+      return;
+    }
+
+    if (
+      !selectedPackage.sub_category_id
+    ) {
+      setError(
+        "El paquete no tiene sub_category_id."
+      );
+      return;
+    }
+
+    try {
+      setCreatingOrder(true);
+      setError("");
+      setMessage("");
+      setCreatedOrderId("");
+
+      /*
+       * IMPORTANTE:
+       *
+       * expected_unit_price es el COSTO REAL
+       * que Shop2TopUp nos está cobrando.
+       *
+       * El precio de venta al cliente NO se manda
+       * como costo del proveedor.
+       */
+      const body = {
+        game: gameKey,
+        package: selectedPackageKey,
+        sub_category_id:
+          Number(
+            selectedPackage.sub_category_id
+          ),
+        quantity: 1,
+        player_id: playerId.trim(),
+        expected_unit_price:
+          String(
+            selectedPackage.cost_usd
+          ),
+      };
+
+      if (gameInfo.requiresZone) {
+        body.zone_id = zoneId.trim();
+      }
+
+      const data = await fetchJson(
+        `${API_BASE}/api/order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+        60000
+      );
+
+      if (
+        data?.ok === false ||
+        providerResponseFailed(data)
+      ) {
+        throw new Error(
+          data?.error ||
+            data?.data?.error ||
+            "Shop2TopUp rechazó la orden."
+        );
+      }
+
+      const orderId =
+        extractOrderId(data);
+
+      if (!orderId) {
+        console.error(
+          "Respuesta de orden sin ID:",
+          data
+        );
+
+        throw new Error(
+          "Shop2TopUp creó una respuesta pero no devolvió el ID de la orden."
+        );
+      }
+
+      setCreatedOrderId(
+        String(orderId)
+      );
+
+      setMessage(
+        "✅ Orden creada correctamente. Abriendo WhatsApp..."
+      );
+
+      const priceText =
+        selectedPrice.text;
+
+      const packageLabel =
+        getPackageLabel(
+          gameKey,
+          selectedPackage
+        );
+
+      const lines = [
+        "🛒 *NUEVO PEDIDO - RECARGAS DIAMANTES*",
+        "",
+        `📋 Pedido: ${orderId}`,
+        `🎮 Juego: ${gameInfo.name}`,
+        `💎 Paquete: ${packageLabel}`,
+        `👤 ID del jugador: ${playerId.trim()}`,
+      ];
+
+      if (gameInfo.requiresZone) {
+        lines.push(
+          `🆔 Zone ID: ${zoneId.trim()}`
+        );
+      }
+
+      if (playerName) {
+        lines.push(
+          `👑 Nombre: ${playerName}`
+        );
+      }
+
+      lines.push(
+        `💳 Método de pago: ${
+          selectedPayment?.name ||
+          payment
+        }`,
+        `💰 Total: ${priceText}`,
+        "",
+        "✅ ID validado correctamente.",
+        "✅ Orden creada en el sistema.",
+        "",
+        "Hola, quiero realizar esta recarga. Por favor, indícame cómo continuar con el pago."
+      );
+
+      const whatsappMessage =
+        lines.join("\n");
+
+      const whatsappUrl =
+        `https://wa.me/${WHATSAPP_NUMBER}` +
+        `?text=${encodeURIComponent(
+          whatsappMessage
+        )}`;
+
+      /*
+       * Pequeña pausa para que el usuario
+       * alcance a ver que la orden fue creada.
+       */
+      setTimeout(() => {
+        window.location.href =
+          whatsappUrl;
+      }, 500);
+    } catch (err) {
+      console.error(
+        "CREATE ORDER ERROR:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "No se pudo crear la orden en Shop2TopUp."
+      );
+    } finally {
+      setCreatingOrder(false);
+    }
   }
+
   if (loadingProducts) {
     return (
       <div className="loading-screen">
         <div className="loading-box">
           <div className="spinner"></div>
-          <h2>Cargando tienda...</h2>
-          <p>Conectando con nuestro servidor.</p>
+
+          <h2>
+            Cargando tienda...
+          </h2>
+
+          <p>
+            Conectando con nuestro servidor.
+          </p>
         </div>
+
         <style>{`
           * {
             box-sizing: border-box;
           }
+
           body {
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
           }
+
           .loading-screen {
             min-height: 100vh;
             display: flex;
@@ -329,22 +716,29 @@ function App() {
             background: #f3f6fb;
             padding: 20px;
           }
+
           .loading-box {
+            width: 100%;
+            max-width: 420px;
             text-align: center;
             background: white;
             padding: 35px;
             border-radius: 22px;
-            box-shadow: 0 15px 45px rgba(0,0,0,.10);
+            box-shadow:
+              0 15px 45px rgba(0,0,0,.10);
           }
+
           .spinner {
-            width: 45px;
-            height: 45px;
+            width: 48px;
+            height: 48px;
             margin: 0 auto 20px;
             border: 5px solid #e5e7eb;
             border-top-color: #2563eb;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation:
+              spin 1s linear infinite;
           }
+
           @keyframes spin {
             to {
               transform: rotate(360deg);
@@ -354,108 +748,193 @@ function App() {
       </div>
     );
   }
+
   return (
     <div className="app">
       <header className="hero">
         <div className="container">
           <div className="brand">
-            <div className="brand-icon">💎</div>
-            <h1>Recargas Diamantes</h1>
+            <div className="brand-icon">
+              💎
+            </div>
+
+            <h1>
+              Recargas Diamantes
+            </h1>
+
             <p>
-              Recarga tus juegos de forma rápida,
-              sencilla y segura.
+              Recarga tus juegos de forma
+              rápida, sencilla y segura.
             </p>
           </div>
         </div>
       </header>
+
       <main className="container main">
         <div className="card">
+
           {error && (
             <div className="alert error">
               ❌ {error}
             </div>
           )}
+
           {message && (
             <div className="alert success">
-              ✅ {message}
+              {message}
             </div>
           )}
+
+          {createdOrderId && (
+            <div className="order-created">
+              <strong>
+                🧾 Orden creada
+              </strong>
+
+              <span>
+                {createdOrderId}
+              </span>
+            </div>
+          )}
+
           <section className="section">
-            <h2>🎮 Selecciona tu juego</h2>
+            <h2>
+              🎮 Selecciona tu juego
+            </h2>
+
             <div className="games">
-              {Object.entries(GAME_INFO).map(
-                ([key, info]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`game ${
-                      gameKey === key
-                        ? "active"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      changeGame(key)
-                    }
-                  >
-                    <span className="game-icon">
-                      {info.icon}
-                    </span>
-                    <span className="game-name">
-                      {info.name}
-                    </span>
-                  </button>
-                )
-              )}
+              {Object.entries(
+                GAME_INFO
+              ).map(([key, info]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`game ${
+                    gameKey === key
+                      ? "active"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    changeGame(key)
+                  }
+                >
+                  <span className="game-icon">
+                    {info.icon}
+                  </span>
+
+                  <span className="game-name">
+                    {info.name}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
-          <form onSubmit={prepareOrder}>
+
+          <form
+            onSubmit={prepareOrder}
+          >
             <section className="section">
-              <h2>💎 Selecciona tu paquete</h2>
+              <h2>
+                💎 Selecciona tu paquete
+              </h2>
+
               <div className="packages">
                 {packageEntries.map(
-                  ([key, pack]) => (
+                  ([key, pack]) => {
+                    const price =
+                      getPaymentPrice(
+                        pack,
+                        payment
+                      );
+
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`package ${
+                          selectedPackageKey ===
+                          key
+                            ? "selected"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          changePackage(
+                            key
+                          )
+                        }
+                      >
+                        <strong>
+                          {getPackageLabel(
+                            gameKey,
+                            pack
+                          )}
+                        </strong>
+
+                        <span>
+                          {price.text}
+                        </span>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            </section>
+
+            <section className="section">
+              <h2>
+                💳 Método de pago
+              </h2>
+
+              <div className="payments">
+                {PAYMENT_METHODS.map(
+                  (method) => (
                     <button
-                      key={key}
+                      key={method.id}
                       type="button"
-                      className={`package ${
-                        selectedPackageKey === key
+                      className={`payment ${
+                        payment ===
+                        method.id
                           ? "selected"
                           : ""
                       }`}
                       onClick={() =>
-                        changePackage(key)
+                        changePayment(
+                          method.id
+                        )
                       }
                     >
-                      <strong>
-                        {getPackageLabel(
-                          gameKey,
-                          pack
-                        )}
-                      </strong>
                       <span>
-                        Desde{" "}
-                        {payment === "mlc"
-                          ? `${formatMlc(
-                              pack.sale_mlc
-                            )} MLC`
-                          : `${formatCup(
-                              payment ===
-                                "transfermovil"
-                                ? pack.sale_cup_transfermovil
-                                : pack.sale_cup_saldo_movil
-                            )} CUP`}
+                        {method.icon}
                       </span>
+
+                      <strong>
+                        {method.name}
+                      </strong>
+
+                      <small>
+                        {selectedPackage
+                          ? getPaymentPrice(
+                              selectedPackage,
+                              method.id
+                            ).text
+                          : ""}
+                      </small>
                     </button>
                   )
                 )}
               </div>
             </section>
+
             <section className="section">
-              <h2>👤 Datos del jugador</h2>
+              <h2>
+                👤 Datos del jugador
+              </h2>
+
               <div className="input-group">
                 <label>
                   {gameInfo.idLabel}
                 </label>
+
                 <input
                   type="text"
                   value={playerId}
@@ -466,11 +945,16 @@ function App() {
                   }
                   placeholder="Introduce tu ID"
                   inputMode="numeric"
+                  autoComplete="off"
                 />
               </div>
+
               {gameInfo.requiresZone && (
                 <div className="input-group">
-                  <label>Zone ID</label>
+                  <label>
+                    Zone ID
+                  </label>
+
                   <input
                     type="text"
                     value={zoneId}
@@ -480,571 +964,688 @@ function App() {
                       )
                     }
                     placeholder="Introduce tu Zone ID"
+                    autoComplete="off"
                   />
                 </div>
               )}
+
               <button
                 type="button"
                 className="validate-button"
-                onClick={validatePlayer}
-                disabled={loadingValidation}
+                onClick={
+                  validatePlayer
+                }
+                disabled={
+                  loadingValidation ||
+                  creatingOrder
+                }
               >
                 {loadingValidation
-                  ? "Validando..."
+                  ? "🔄 Validando..."
                   : "🔍 Validar jugador"}
               </button>
+
               {playerValidated && (
                 <div className="validated">
                   <strong>
                     ✅ Jugador validado
                   </strong>
+
                   {playerName && (
                     <span>
-                      Nombre: {playerName}
+                      Nombre:{" "}
+                      {playerName}
                     </span>
                   )}
                 </div>
               )}
             </section>
-            <section className="section">
-              <h2>💳 Método de pago</h2>
-              <div className="payments">
-                {PAYMENT_METHODS.map(
-                  (method) => (
-                    <button
-                      key={method.id}
-                      type="button"
-                      className={`payment ${
-                        payment === method.id
-                          ? "selected"
-                          : ""
-                      }`}
-                      onClick={() => {
-                        setPayment(
-                          method.id
-                        );
-                        setShowOrder(false);
-                      }}
-                    >
-                      <span className="payment-icon">
-                        {method.icon}
-                      </span>
-                      <span>
-                        {method.name}
-                      </span>
-                    </button>
-                  )
-                )}
-              </div>
-            </section>
-            <section className="summary">
-              <div>
-                <span>Juego</span>
-                <strong>
-                  {gameInfo.name}
-                </strong>
-              </div>
-              <div>
-                <span>Paquete</span>
-                <strong>
-                  {selectedPackage
-                    ? getPackageLabel(
-                        gameKey,
-                        selectedPackage
-                      )
-                    : "—"}
-                </strong>
-              </div>
-              <div>
-                <span>Pago</span>
-                <strong>
-                  {
-                    PAYMENT_METHODS.find(
-                      (item) =>
-                        item.id === payment
-                    )?.name
-                  }
-                </strong>
-              </div>
-              <div className="total">
-                <span>Total</span>
-                <strong>
-                  {selectedPrice.text}
-                </strong>
-              </div>
-            </section>
-            {!showOrder ? (
-              <button
-                type="submit"
-                className="continue-button"
-              >
-                Continuar con el pedido
-              </button>
-            ) : (
-              <div className="order-confirmation">
-                <h2>
-                  ✅ Pedido listo
-                </h2>
-                <p>
-                  Verifica los datos antes de
-                  continuar por WhatsApp.
-                </p>
-                <div className="confirmation-data">
-                  <p>
-                    <strong>Juego:</strong>{" "}
+
+            <section className="section summary-section">
+              <h2>
+                🧾 Resumen
+              </h2>
+
+              <div className="summary">
+                <div>
+                  <span>
+                    Juego
+                  </span>
+
+                  <strong>
                     {gameInfo.name}
-                  </p>
-                  <p>
-                    <strong>Paquete:</strong>{" "}
-                    {getPackageLabel(
-                      gameKey,
-                      selectedPackage
-                    )}
-                  </p>
-                  <p>
-                    <strong>ID:</strong>{" "}
-                    {playerId}
-                  </p>
-                  {gameInfo.requiresZone && (
-                    <p>
-                      <strong>
-                        Zone ID:
-                      </strong>{" "}
-                      {zoneId}
-                    </p>
-                  )}
-                  <p>
-                    <strong>Pago:</strong>{" "}
-                    {
-                      PAYMENT_METHODS.find(
-                        (item) =>
-                          item.id === payment
-                      )?.name
-                    }
-                  </p>
-                  <p className="confirmation-total">
-                    <strong>
-                      Total:
-                    </strong>{" "}
-                    {selectedPrice.text}
-                  </p>
+                  </strong>
                 </div>
-                <button
-                  type="button"
-                  className="whatsapp-button"
-                  onClick={
-                    sendWhatsAppOrder
-                  }
-                >
-                  📲 Enviar pedido por WhatsApp
-                </button>
-                <button
-                  type="button"
-                  className="back-button"
-                  onClick={() =>
-                    setShowOrder(false)
-                  }
-                >
-                  ← Modificar pedido
-                </button>
+
+                <div>
+                  <span>
+                    Paquete
+                  </span>
+
+                  <strong>
+                    {selectedPackage
+                      ? getPackageLabel(
+                          gameKey,
+                          selectedPackage
+                        )
+                      : "—"}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    Pago
+                  </span>
+
+                  <strong>
+                    {selectedPayment?.name ||
+                      "—"}
+                  </strong>
+                </div>
+
+                <div className="total">
+                  <span>
+                    Total
+                  </span>
+
+                  <strong>
+                    {selectedPrice.text}
+                  </strong>
+                </div>
               </div>
-            )}
+            </section>
+
+            <button
+              type="submit"
+              className="continue-button"
+              disabled={
+                creatingOrder
+              }
+            >
+              Continuar
+            </button>
           </form>
-        </div>
-        <div className="info">
-          <div>
-            <strong>🔐 Seguro</strong>
-            <span>
-              Validamos tu ID antes de la recarga.
-            </span>
-          </div>
-          <div>
-            <strong>⚡ Rápido</strong>
-            <span>
-              Procesamos tus pedidos rápidamente.
-            </span>
-          </div>
-          <div>
-            <strong>💬 Atención</strong>
-            <span>
-              Soporte directo por WhatsApp.
-            </span>
+
+          {showOrder && (
+            <section className="confirmation">
+              <h2>
+                🛒 Confirmar pedido
+              </h2>
+
+              <div className="confirmation-box">
+                <p>
+                  <strong>
+                    Juego:
+                  </strong>{" "}
+                  {gameInfo.name}
+                </p>
+
+                <p>
+                  <strong>
+                    Paquete:
+                  </strong>{" "}
+                  {getPackageLabel(
+                    gameKey,
+                    selectedPackage
+                  )}
+                </p>
+
+                <p>
+                  <strong>
+                    ID:
+                  </strong>{" "}
+                  {playerId}
+                </p>
+
+                {gameInfo.requiresZone && (
+                  <p>
+                    <strong>
+                      Zone ID:
+                    </strong>{" "}
+                    {zoneId}
+                  </p>
+                )}
+
+                <p>
+                  <strong>
+                    Pago:
+                  </strong>{" "}
+                  {selectedPayment?.name}
+                </p>
+
+                <p className="confirmation-total">
+                  <strong>
+                    Total:
+                  </strong>{" "}
+                  {selectedPrice.text}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="whatsapp-button"
+                onClick={
+                  createShop2TopupOrder
+                }
+                disabled={
+                  creatingOrder
+                }
+              >
+                {creatingOrder
+                  ? "⏳ Creando orden..."
+                  : "📲 Crear orden y continuar por WhatsApp"}
+              </button>
+
+              <p className="small-note">
+                Primero crearemos la orden
+                en Shop2TopUp. Después se
+                abrirá WhatsApp con los
+                datos del pedido.
+              </p>
+            </section>
+          )}
+
+          <div className="security">
+            🔒 Tus datos se utilizan
+            únicamente para procesar la
+            recarga.
           </div>
         </div>
       </main>
+
       <footer>
-        <p>
-          © {new Date().getFullYear()} Recargas
-          Diamantes
-        </p>
+        <div className="container">
+          <p>
+            © {new Date().getFullYear()}
+            {" "}Recargas Diamantes
+          </p>
+
+          <p>
+            Servicio de recargas digitales
+          </p>
+        </div>
       </footer>
+
       <style>{`
         * {
           box-sizing: border-box;
         }
+
+        html {
+          scroll-behavior: smooth;
+        }
+
         body {
           margin: 0;
-          font-family: Arial, Helvetica, sans-serif;
+          font-family:
+            Arial,
+            Helvetica,
+            sans-serif;
           background: #f3f6fb;
           color: #172033;
         }
+
         button,
         input {
           font: inherit;
         }
+
         button {
-          -webkit-tap-highlight-color: transparent;
+          cursor: pointer;
         }
+
+        button:disabled {
+          cursor: not-allowed;
+          opacity: .65;
+        }
+
         .app {
           min-height: 100vh;
+          display: flex;
+          flex-direction: column;
         }
+
+        .container {
+          width: min(
+            100% - 30px,
+            1050px
+          );
+          margin: 0 auto;
+        }
+
         .hero {
           background:
             linear-gradient(
               135deg,
-              #111827,
-              #1d4ed8
+              #2563eb,
+              #4f46e5
             );
           color: white;
-          padding: 42px 20px 75px;
+          padding: 35px 0;
         }
-        .container {
-          width: min(100%, 1050px);
-          margin: 0 auto;
-        }
+
         .brand {
           text-align: center;
         }
+
         .brand-icon {
-          font-size: 46px;
-          margin-bottom: 8px;
+          width: 70px;
+          height: 70px;
+          margin: 0 auto 12px;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(
+            255,
+            255,
+            255,
+            .15
+          );
+          font-size: 38px;
         }
+
         .brand h1 {
           margin: 0;
-          font-size: clamp(
-            32px,
-            7vw,
-            55px
-          );
-          font-weight: 900;
+          font-size: 32px;
         }
+
         .brand p {
-          margin: 12px auto 0;
-          max-width: 650px;
-          font-size: 17px;
-          line-height: 1.5;
+          margin: 10px 0 0;
           opacity: .92;
         }
+
         .main {
-          padding: 0 16px 40px;
+          padding: 25px 0 50px;
+          flex: 1;
         }
+
         .card {
           background: white;
           border-radius: 24px;
           padding: 25px;
           box-shadow:
-            0 18px 50px
-            rgba(15, 23, 42, .13);
-          margin-top: -38px;
-          position: relative;
+            0 15px 50px
+            rgba(15,23,42,.08);
         }
+
         .section {
-          margin-bottom: 30px;
+          padding: 10px 0 25px;
+          border-bottom:
+            1px solid #e8edf5;
+          margin-bottom: 25px;
         }
+
         .section h2 {
-          margin: 0 0 15px;
+          margin:
+            0 0 18px;
           font-size: 21px;
         }
+
         .games {
           display: grid;
           grid-template-columns:
             repeat(3, 1fr);
           gap: 12px;
         }
+
         .game {
-          border: 2px solid #e5e7eb;
+          border:
+            2px solid #e5e7eb;
           background: white;
-          border-radius: 17px;
+          border-radius: 16px;
           padding: 18px 10px;
-          cursor: pointer;
-          text-align: center;
-          color: #172033;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
           transition: .2s;
         }
+
         .game:hover {
-          transform:
-            translateY(-2px);
+          transform: translateY(-2px);
         }
+
         .game.active {
           border-color: #2563eb;
           background: #eff6ff;
         }
+
         .game-icon {
-          display: block;
           font-size: 32px;
-          margin-bottom: 7px;
         }
+
         .game-name {
-          font-weight: 800;
+          font-weight: 700;
+          font-size: 14px;
         }
+
         .packages {
           display: grid;
           grid-template-columns:
             repeat(3, 1fr);
-          gap: 10px;
+          gap: 12px;
         }
+
         .package {
           background: white;
-          border: 2px solid #e5e7eb;
+          border:
+            2px solid #e5e7eb;
           border-radius: 15px;
-          padding: 15px 10px;
-          cursor: pointer;
-          color: #172033;
-          text-align: center;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          text-align: left;
+          transition: .2s;
         }
+
+        .package:hover {
+          transform: translateY(-2px);
+          border-color: #93c5fd;
+        }
+
         .package.selected {
           border-color: #2563eb;
           background: #eff6ff;
         }
-        .package strong,
-        .package span {
-          display: block;
-        }
+
         .package strong {
           font-size: 17px;
-          margin-bottom: 6px;
         }
+
         .package span {
-          color: #64748b;
-          font-size: 13px;
-        }
-        .input-group {
-          margin-bottom: 15px;
-        }
-        label {
-          display: block;
+          color: #2563eb;
           font-weight: 700;
-          margin-bottom: 7px;
         }
-        input {
-          width: 100%;
-          border: 1px solid #d1d5db;
-          border-radius: 12px;
-          padding: 14px;
-          outline: none;
-          background: white;
-        }
-        input:focus {
-          border-color: #2563eb;
-          box-shadow:
-            0 0 0 3px
-            rgba(37,99,235,.10);
-        }
-        .validate-button {
-          width: 100%;
-          border: 0;
-          border-radius: 12px;
-          padding: 14px;
-          background: #e0ecff;
-          color: #1d4ed8;
-          font-weight: 800;
-          cursor: pointer;
-        }
-        .validate-button:disabled {
-          opacity: .6;
-          cursor: wait;
-        }
-        .validated {
-          margin-top: 12px;
-          padding: 13px;
-          border-radius: 12px;
-          background: #ecfdf5;
-          color: #047857;
-        }
-        .validated strong,
-        .validated span {
-          display: block;
-        }
-        .validated span {
-          margin-top: 4px;
-        }
+
         .payments {
           display: grid;
           grid-template-columns:
             repeat(3, 1fr);
-          gap: 10px;
+          gap: 12px;
         }
+
         .payment {
-          border: 2px solid #e5e7eb;
+          border:
+            2px solid #e5e7eb;
           background: white;
-          border-radius: 15px;
-          padding: 15px 8px;
-          cursor: pointer;
-          color: #172033;
-          font-weight: 700;
+          border-radius: 16px;
+          padding: 17px 10px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 7px;
         }
+
         .payment.selected {
           border-color: #2563eb;
           background: #eff6ff;
         }
-        .payment-icon {
-          display: block;
+
+        .payment span {
           font-size: 25px;
-          margin-bottom: 6px;
         }
+
+        .payment strong {
+          font-size: 14px;
+        }
+
+        .payment small {
+          color: #2563eb;
+          font-weight: 700;
+          font-size: 14px;
+        }
+
+        .input-group {
+          margin-bottom: 15px;
+        }
+
+        .input-group label {
+          display: block;
+          margin-bottom: 7px;
+          font-weight: 700;
+        }
+
+        .input-group input {
+          width: 100%;
+          padding: 15px;
+          border:
+            2px solid #e5e7eb;
+          border-radius: 13px;
+          outline: none;
+          font-size: 16px;
+        }
+
+        .input-group input:focus {
+          border-color: #2563eb;
+        }
+
+        .validate-button {
+          width: 100%;
+          padding: 14px;
+          border: none;
+          border-radius: 13px;
+          background: #eef2ff;
+          color: #3730a3;
+          font-weight: 800;
+        }
+
+        .validated {
+          margin-top: 14px;
+          padding: 13px;
+          border-radius: 13px;
+          background: #ecfdf5;
+          color: #047857;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .summary-section {
+          border-bottom: none;
+          margin-bottom: 0;
+        }
+
         .summary {
           background: #f8fafc;
           border-radius: 17px;
-          padding: 18px;
-          margin-top: 10px;
+          padding: 15px;
         }
+
         .summary > div {
           display: flex;
           justify-content: space-between;
-          gap: 20px;
-          padding: 9px 0;
-          border-bottom: 1px solid #e5e7eb;
+          gap: 15px;
+          padding: 10px 0;
+          border-bottom:
+            1px solid #e5e7eb;
         }
+
         .summary > div:last-child {
-          border-bottom: 0;
+          border-bottom: none;
         }
+
         .summary span {
           color: #64748b;
         }
+
         .summary strong {
           text-align: right;
         }
-        .summary .total {
-          margin-top: 5px;
-          padding-top: 15px;
-          font-size: 20px;
-        }
+
         .summary .total strong {
           color: #2563eb;
+          font-size: 19px;
         }
-        .continue-button,
-        .whatsapp-button {
+
+        .continue-button {
           width: 100%;
-          border: 0;
+          padding: 17px;
+          border: none;
           border-radius: 14px;
-          padding: 16px;
+          background: #2563eb;
           color: white;
-          font-weight: 900;
-          cursor: pointer;
+          font-weight: 800;
           font-size: 17px;
         }
-        .continue-button {
-          background: #2563eb;
-          margin-top: 20px;
-        }
+
         .continue-button:hover {
           background: #1d4ed8;
         }
-        .whatsapp-button {
-          background: #16a34a;
-          margin-top: 15px;
-        }
-        .back-button {
-          width: 100%;
-          border: 0;
-          background: transparent;
-          color: #64748b;
-          padding: 14px;
-          cursor: pointer;
-          font-weight: 700;
-        }
-        .order-confirmation {
-          margin-top: 20px;
-          padding: 20px;
+
+        .confirmation {
+          margin-top: 25px;
+          padding: 22px;
+          border-radius: 20px;
           background: #f8fafc;
-          border-radius: 18px;
+          border:
+            2px solid #e2e8f0;
         }
-        .order-confirmation h2 {
+
+        .confirmation h2 {
           margin-top: 0;
         }
-        .confirmation-data {
+
+        .confirmation-box {
           background: white;
-          border-radius: 14px;
+          border-radius: 15px;
           padding: 15px;
+          margin-bottom: 15px;
         }
-        .confirmation-data p {
+
+        .confirmation-box p {
           margin: 8px 0;
         }
+
         .confirmation-total {
-          font-size: 20px;
           color: #2563eb;
+          font-size: 18px;
         }
+
+        .whatsapp-button {
+          width: 100%;
+          border: none;
+          border-radius: 14px;
+          padding: 17px;
+          background: #16a34a;
+          color: white;
+          font-weight: 800;
+          font-size: 16px;
+        }
+
+        .whatsapp-button:hover {
+          background: #15803d;
+        }
+
+        .small-note {
+          text-align: center;
+          color: #64748b;
+          font-size: 13px;
+          line-height: 1.5;
+          margin-bottom: 0;
+        }
+
         .alert {
-          border-radius: 13px;
-          padding: 13px 15px;
-          margin-bottom: 20px;
-          font-weight: 700;
+          padding: 14px 16px;
+          border-radius: 14px;
+          margin-bottom: 18px;
+          font-weight: 600;
         }
+
         .alert.error {
           background: #fef2f2;
           color: #b91c1c;
+          border:
+            1px solid #fecaca;
         }
+
         .alert.success {
           background: #ecfdf5;
           color: #047857;
+          border:
+            1px solid #a7f3d0;
         }
-        .info {
-          display: grid;
-          grid-template-columns:
-            repeat(3, 1fr);
+
+        .order-created {
+          display: flex;
+          justify-content: space-between;
           gap: 15px;
+          padding: 14px;
+          margin-bottom: 18px;
+          border-radius: 14px;
+          background: #eff6ff;
+          color: #1d4ed8;
+        }
+
+        .security {
           margin-top: 25px;
-        }
-        .info > div {
-          background: white;
-          border-radius: 16px;
-          padding: 18px;
+          padding-top: 20px;
+          border-top:
+            1px solid #e5e7eb;
           text-align: center;
-          box-shadow:
-            0 8px 25px
-            rgba(15,23,42,.06);
-        }
-        .info strong,
-        .info span {
-          display: block;
-        }
-        .info strong {
-          margin-bottom: 7px;
-        }
-        .info span {
           color: #64748b;
-          font-size: 14px;
-          line-height: 1.4;
+          font-size: 13px;
         }
+
         footer {
+          background: #111827;
+          color: #9ca3af;
+          padding: 25px 0;
           text-align: center;
-          padding: 20px;
-          color: #64748b;
+          font-size: 13px;
         }
-        @media (max-width: 700px) {
+
+        footer p {
+          margin: 5px 0;
+        }
+
+        @media (max-width: 750px) {
+          .container {
+            width:
+              min(
+                100% - 20px,
+                1050px
+              );
+          }
+
           .card {
             padding: 18px;
+            border-radius: 19px;
           }
+
+          .hero {
+            padding: 28px 0;
+          }
+
+          .brand h1 {
+            font-size: 27px;
+          }
+
           .games,
           .packages,
           .payments {
             grid-template-columns:
               repeat(2, 1fr);
           }
-          .info {
-            grid-template-columns: 1fr;
-          }
         }
-        @media (max-width: 420px) {
+
+        @media (max-width: 480px) {
           .games,
           .packages,
           .payments {
             grid-template-columns: 1fr;
           }
+
+          .order-created {
+            flex-direction: column;
+          }
+
           .summary > div {
             flex-direction: column;
-            gap: 3px;
+            gap: 4px;
           }
+
           .summary strong {
             text-align: left;
           }
@@ -1053,4 +1654,5 @@ function App() {
     </div>
   );
 }
+
 export default App;
