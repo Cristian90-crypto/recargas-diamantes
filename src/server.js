@@ -1,6 +1,25 @@
 import express from "express";
 import crypto from "crypto";
 const app = express();
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const SHOP2TOPUP_API_KEY = process.env.SHOP2TOPUP_API_KEY;
