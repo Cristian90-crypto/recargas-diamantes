@@ -1,862 +1,1056 @@
-import React, { useMemo, useState } from "react";
-
+import React, { useEffect, useMemo, useState } from "react";
+const API_BASE = "https://recargas-diamantes.onrender.com";
 const WHATSAPP_NUMBER = "5350504941";
-
-const games = {
-  freeFire: {
+const GAME_INFO = {
+  freefire: {
     name: "Free Fire",
     icon: "🔥",
     idLabel: "ID del jugador",
-    validationCode: "free_fire",
-    packages: [
-      {
-        amount: "110 💎",
-        transfer: 1000,
-        saldo: 500,
-        mlc: 2,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_110_DIAMONDS_542",
-      },
-      {
-        amount: "341 💎",
-        transfer: 3000,
-        saldo: 1500,
-        mlc: 6,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_341_DIAMONDS_543",
-      },
-      {
-        amount: "572 💎",
-        transfer: 5000,
-        saldo: 2500,
-        mlc: 10,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_572_DIAMONDS_544",
-      },
-      {
-        amount: "1,166 💎",
-        transfer: 10000,
-        saldo: 5000,
-        mlc: 20,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_1166_DIAMONDS_545",
-      },
-      {
-        amount: "2,398 💎",
-        transfer: 19500,
-        saldo: 10000,
-        mlc: 40,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_2398_DIAMONDS_546",
-      },
-      {
-        amount: "6,160 💎",
-        transfer: 50000,
-        saldo: 25000,
-        mlc: 100,
-        serviceCode: "TOPUP_FREE_FIRE_LATAM_6160_DIAMONDS_547",
-      },
-    ],
+    requiresZone: false,
+    currencyLabel: "💎 Diamantes",
   },
-
-  mobileLegends: {
-    name: "Mobile Legends",
+  mobilelegends: {
+    name: "Mobile Legends: Bang Bang",
     icon: "⚔️",
     idLabel: "ID del jugador",
-    zoneLabel: "Zone ID",
-    validationCode: "mlbb_global",
-    packages: [
-      {
-        amount: "55 💎",
-        transfer: 1000,
-        saldo: 500,
-        mlc: 2,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_55_DIAMONDS_38",
-      },
-      {
-        amount: "86 💎",
-        transfer: 1500,
-        saldo: 750,
-        mlc: 3,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_86_DIAMONDS_39",
-      },
-      {
-        amount: "165 💎",
-        transfer: 3000,
-        saldo: 1500,
-        mlc: 6,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_165_DIAMONDS_40",
-      },
-      {
-        amount: "172 💎",
-        transfer: 3000,
-        saldo: 1500,
-        mlc: 6,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_172_DIAMONDS_41",
-      },
-      {
-        amount: "257 💎",
-        transfer: 4500,
-        saldo: 2250,
-        mlc: 9,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_257_DIAMONDS_42",
-      },
-      {
-        amount: "275 💎",
-        transfer: 4500,
-        saldo: 2250,
-        mlc: 9,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_275_DIAMONDS_43",
-      },
-      {
-        amount: "343 💎",
-        transfer: 6000,
-        saldo: 3000,
-        mlc: 12,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_343_DIAMONDS_44",
-      },
-      {
-        amount: "344 💎",
-        transfer: 6000,
-        saldo: 3000,
-        mlc: 12,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_344_DIAMONDS_45",
-      },
-      {
-        amount: "429 💎",
-        transfer: 7000,
-        saldo: 3500,
-        mlc: 14,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_429_DIAMONDS_46",
-      },
-      {
-        amount: "430 💎",
-        transfer: 7500,
-        saldo: 3750,
-        mlc: 15,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_430_DIAMONDS_47",
-      },
-      {
-        amount: "514 💎",
-        transfer: 8500,
-        saldo: 4250,
-        mlc: 17,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_514_DIAMONDS_48",
-      },
-      {
-        amount: "516 💎",
-        transfer: 9000,
-        saldo: 4500,
-        mlc: 18,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_516_DIAMONDS_49",
-      },
-      {
-        amount: "565 💎",
-        transfer: 9500,
-        saldo: 4750,
-        mlc: 19,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_565_DIAMONDS_50",
-      },
-      {
-        amount: "600 💎",
-        transfer: 10000,
-        saldo: 5000,
-        mlc: 20,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_600_DIAMONDS_51",
-      },
-      {
-        amount: "602 💎",
-        transfer: 10500,
-        saldo: 5250,
-        mlc: 21,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_602_DIAMONDS_52",
-      },
-      {
-        amount: "706 💎",
-        transfer: 11500,
-        saldo: 5750,
-        mlc: 23,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_706_DIAMONDS_53",
-      },
-      {
-        amount: "792 💎",
-        transfer: 13000,
-        saldo: 6500,
-        mlc: 26,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_792_DIAMONDS_54",
-      },
-      {
-        amount: "878 💎",
-        transfer: 14500,
-        saldo: 7250,
-        mlc: 29,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_878_DIAMONDS_55",
-      },
-      {
-        amount: "963 💎",
-        transfer: 16000,
-        saldo: 8000,
-        mlc: 32,
-        serviceCode: "TOPUP_MOBILE_LEGENDS_3_963_DIAMONDS_56",
-      },
-    ],
+    requiresZone: true,
+    currencyLabel: "💎 Diamantes",
   },
-
   pubg: {
     name: "PUBG Mobile",
-    icon: "🔫",
+    icon: "🎯",
     idLabel: "ID del jugador",
-    packages: [
-      {
-        amount: "60 UC",
-        transfer: 1000,
-        saldo: 500,
-        mlc: 2,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_60_UC_404",
-      },
-      {
-        amount: "325 UC",
-        transfer: 5000,
-        saldo: 2500,
-        mlc: 10,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_325_UC_405",
-      },
-      {
-        amount: "660 UC",
-        transfer: 10000,
-        saldo: 5000,
-        mlc: 20,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_660_UC_406",
-      },
-      {
-        amount: "1,800 UC",
-        transfer: 25000,
-        saldo: 12500,
-        mlc: 50,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_1800_UC_407",
-      },
-      {
-        amount: "3,850 UC",
-        transfer: 50000,
-        saldo: 25000,
-        mlc: 100,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_3850_UC_408",
-      },
-      {
-        amount: "8,100 UC",
-        transfer: 100000,
-        saldo: 50000,
-        mlc: 200,
-        serviceCode: "TOPUP_PUBG_MOBILE_7_8100_UC_409",
-      },
-    ],
+    requiresZone: false,
+    currencyLabel: "UC",
   },
 };
-const paymentMethods = [
-  { id: "transfer", name: "Transfermóvil" },
-  { id: "saldo", name: "Saldo móvil" },
-  { id: "mlc", name: "MLC" },
+const PAYMENT_METHODS = [
+  {
+    id: "transfermovil",
+    name: "Transfermóvil",
+    icon: "📱",
+    suffix: "CUP",
+  },
+  {
+    id: "saldo_movil",
+    name: "Saldo móvil",
+    icon: "📲",
+    suffix: "CUP",
+  },
+  {
+    id: "mlc",
+    name: "MLC",
+    icon: "💵",
+    suffix: "MLC",
+  },
 ];
-
-function formatPrice(value) {
-  return Number.isInteger(value)
-    ? value.toLocaleString("es-CU")
-    : value.toFixed(2);
+function formatCup(value) {
+  return Math.round(Number(value || 0)).toLocaleString("es-CU");
 }
-
+function formatMlc(value) {
+  return Number(value || 0).toFixed(2);
+}
+function getPackageLabel(gameKey, pack) {
+  if (gameKey === "pubg") {
+    return `${Number(pack.uc).toLocaleString("es-CU")} UC`;
+  }
+  return `${Number(pack.diamonds).toLocaleString("es-CU")} 💎`;
+}
+function getPaymentPrice(pack, payment) {
+  if (payment === "transfermovil") {
+    return {
+      value: pack.sale_cup_transfermovil,
+      text: `${formatCup(pack.sale_cup_transfermovil)} CUP`,
+    };
+  }
+  if (payment === "saldo_movil") {
+    return {
+      value: pack.sale_cup_saldo_movil,
+      text: `${formatCup(pack.sale_cup_saldo_movil)} CUP`,
+    };
+  }
+  return {
+    value: pack.sale_mlc,
+    text: `${formatMlc(pack.sale_mlc)} MLC`,
+  };
+}
 function App() {
-  const [gameId, setGameId] = useState("freeFire");
+  const [products, setProducts] = useState(null);
+  const [gameKey, setGameKey] = useState("freefire");
+  const [packageKey, setPackageKey] = useState("");
+  const [payment, setPayment] = useState("transfermovil");
   const [playerId, setPlayerId] = useState("");
   const [zoneId, setZoneId] = useState("");
-  const [packageIndex, setPackageIndex] = useState(0);
-  const [payment, setPayment] = useState("transfer");
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingValidation, setLoadingValidation] = useState(false);
+  const [playerValidated, setPlayerValidated] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [showOrder, setShowOrder] = useState(false);
-
-  const game = games[gameId];
-  const selectedPackage = game.packages[packageIndex];
-
-  const price = useMemo(() => {
-    if (payment === "transfer") return selectedPackage.transfer;
-    if (payment === "saldo") return selectedPackage.saldo;
-    return selectedPackage.mlc;
+  const game = products?.[gameKey];
+  const packages = game?.packages || {};
+  const packageEntries = Object.entries(packages);
+  const selectedPackage =
+    packages[packageKey] ||
+    packageEntries[0]?.[1] ||
+    null;
+  const selectedPackageKey =
+    packageKey || packageEntries[0]?.[0] || "";
+  const gameInfo = GAME_INFO[gameKey];
+  const selectedPrice = useMemo(() => {
+    if (!selectedPackage) {
+      return {
+        value: 0,
+        text: "—",
+      };
+    }
+    return getPaymentPrice(selectedPackage, payment);
   }, [selectedPackage, payment]);
-
-  const paymentName =
-    paymentMethods.find((method) => method.id === payment)?.name || "";
-
-  const [orderNumber] = useState(
-    () => `RD-${Date.now().toString().slice(-8)}`
-  );
-
-  function changeGame(value) {
-    setGameId(value);
-    setPackageIndex(0);
+  useEffect(() => {
+    loadProducts();
+  }, []);
+  useEffect(() => {
+    if (!game) return;
+    const firstPackage = Object.keys(game.packages || {})[0] || "";
+    setPackageKey(firstPackage);
     setPlayerId("");
     setZoneId("");
+    setPlayerValidated(false);
+    setPlayerName("");
+    setError("");
+    setMessage("");
+    setShowOrder(false);
+  }, [gameKey, products]);
+  async function loadProducts() {
+    try {
+      setLoadingProducts(true);
+      setError("");
+      const response = await fetch(`${API_BASE}/api/products`);
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        throw new Error(
+          data.error || "No se pudieron cargar los productos."
+        );
+      }
+      setProducts(data.products);
+    } catch (err) {
+      console.error(err);
+      setError(
+        "No se pudieron cargar los productos. Comprueba que el servidor esté activo."
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  }
+  function changeGame(value) {
+    setGameKey(value);
+  }
+  function changePackage(value) {
+    setPackageKey(value);
+    setPlayerValidated(false);
+    setPlayerName("");
+    setError("");
+    setMessage("");
     setShowOrder(false);
   }
-
-  function submitOrder(event) {
-    event.preventDefault();
-
-    if (!playerId.trim()) {
-      alert("Por favor, introduce el ID del jugador.");
-      return;
-    }
-
-    if (gameId === "mobileLegends" && !zoneId.trim()) {
-      alert("Por favor, introduce el Zone ID.");
-      return;
-    }
-
-    setShowOrder(true);
+  function changePlayerId(value) {
+    setPlayerId(value);
+    setPlayerValidated(false);
+    setPlayerName("");
+    setError("");
+    setMessage("");
+    setShowOrder(false);
   }
-
-  async function sendWhatsAppOrder() {
-  try {
-    const referenceId = `RD-${Date.now()}`;
-
-    const orderData = {
-      service_code: selectedPackage.serviceCode,
-      reference_id: referenceId,
-      quantity: 1,
-      user_id: playerId.trim(),
-    };
-
-    if (gameId === "mobileLegends") {
-      orderData.server_id = zoneId.trim();
+  function changeZoneId(value) {
+    setZoneId(value);
+    setPlayerValidated(false);
+    setPlayerName("");
+    setError("");
+    setMessage("");
+    setShowOrder(false);
+  }
+  async function validatePlayer() {
+    setError("");
+    setMessage("");
+    setPlayerValidated(false);
+    setPlayerName("");
+    if (!playerId.trim()) {
+      setError("Escribe el ID del jugador.");
+      return;
     }
-
-    const response = await fetch(
-      "https://recargas-diamantes.onrender.com/api/order",
-      {
+    if (!selectedPackage?.sub_category_id) {
+      setError("No se encontró el producto seleccionado.");
+      return;
+    }
+    if (gameInfo.requiresZone && !zoneId.trim()) {
+      setError("Escribe el Zone ID de tu cuenta.");
+      return;
+    }
+    try {
+      setLoadingValidation(true);
+      const body = {
+        game: gameKey,
+        player_id: playerId.trim(),
+        sub_category_id: selectedPackage.sub_category_id,
+      };
+      if (gameInfo.requiresZone) {
+        body.zone_id = zoneId.trim();
+      }
+      const response = await fetch(`${API_BASE}/api/check-id`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) {
+        throw new Error(
+          data.error || "No se pudo validar el jugador."
+        );
       }
-    );
-
-    const data = await response.json();
-
-    console.log("Respuesta de FlashTopup:", data);
-
-    if (!response.ok || data.success === false || data.ok === false) {
-      alert(
-        "No se pudo crear la orden. Revisa los datos e inténtalo nuevamente."
+      const player =
+        data?.data?.player ||
+        data?.player ||
+        null;
+      setPlayerValidated(true);
+      if (player?.player_name) {
+        setPlayerName(player.player_name);
+      } else if (player?.name) {
+        setPlayerName(player.name);
+      }
+      setMessage(
+        player?.player_name || player?.name
+          ? `Jugador encontrado: ${
+              player.player_name || player.name
+            }`
+          : "ID validado correctamente."
+      );
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No se pudo validar el jugador. Revisa el ID."
+      );
+    } finally {
+      setLoadingValidation(false);
+    }
+  }
+  function prepareOrder(event) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    if (!playerId.trim()) {
+      setError("Escribe el ID del jugador.");
+      return;
+    }
+    if (gameInfo.requiresZone && !zoneId.trim()) {
+      setError("Escribe el Zone ID.");
+      return;
+    }
+    if (!playerValidated) {
+      setError(
+        "Primero debes validar el ID del jugador."
       );
       return;
     }
-
-    const priceText =
-      payment === "mlc"
-        ? `${formatPrice(price)} MLC`
-        : `${formatPrice(price)} CUP`;
-
-    const message = [
-      "🛒 NUEVO PEDIDO - RECARGAS DIAMANTES",
+    if (!selectedPackage) {
+      setError("Selecciona un paquete.");
+      return;
+    }
+    setShowOrder(true);
+  }
+  function sendWhatsAppOrder() {
+    if (!selectedPackage) return;
+    const referenceId =
+      `RD-${Date.now()}`;
+    const priceText = selectedPrice.text;
+    const lines = [
+      "🛒 *NUEVO PEDIDO - RECARGAS DIAMANTES*",
       "",
       `📋 Pedido: ${referenceId}`,
-      `🎮 Juego: ${game.name}`,
-      `💎 Paquete: ${selectedPackage.amount}`,
-      `👤 ID del jugador: ${playerId}`,
-      gameId === "mobileLegends"
-        ? `🆔 Zone ID: ${zoneId}`
-        : "",
-      `💳 Método de pago: ${paymentName}`,
+      `🎮 Juego: ${gameInfo.name}`,
+      `💎 Paquete: ${getPackageLabel(
+        gameKey,
+        selectedPackage
+      )}`,
+      `👤 ID del jugador: ${playerId.trim()}`,
+    ];
+    if (gameInfo.requiresZone) {
+      lines.push(
+        `🆔 Zone ID: ${zoneId.trim()}`
+      );
+    }
+    if (playerName) {
+      lines.push(
+        `👑 Nombre: ${playerName}`
+      );
+    }
+    lines.push(
+      `💳 Método de pago: ${
+        PAYMENT_METHODS.find(
+          (item) => item.id === payment
+        )?.name
+      }`,
       `💰 Total: ${priceText}`,
       "",
-      "Hola, quiero realizar esta recarga. Por favor, indícame cómo continuar con el pago.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-      message
-    )}`;
-
+      "✅ ID validado correctamente.",
+      "",
+      "Hola, quiero realizar esta recarga. Por favor, indícame cómo continuar con el pago."
+    );
+    const messageText = lines.join("\n");
+    const url =
+      `https://wa.me/${WHATSAPP_NUMBER}` +
+      `?text=${encodeURIComponent(messageText)}`;
     window.location.href = url;
-  } catch (error) {
-    console.error("Error creando pedido:", error);
-
-    alert(
-      "No se pudo conectar con el servidor. Inténtalo nuevamente."
+  }
+  if (loadingProducts) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-box">
+          <div className="spinner"></div>
+          <h2>Cargando tienda...</h2>
+          <p>Conectando con nuestro servidor.</p>
+        </div>
+        <style>{`
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+          .loading-screen {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f3f6fb;
+            padding: 20px;
+          }
+          .loading-box {
+            text-align: center;
+            background: white;
+            padding: 35px;
+            border-radius: 22px;
+            box-shadow: 0 15px 45px rgba(0,0,0,.10);
+          }
+          .spinner {
+            width: 45px;
+            height: 45px;
+            margin: 0 auto 20px;
+            border: 5px solid #e5e7eb;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
     );
   }
-}
   return (
     <div className="app">
+      <header className="hero">
+        <div className="container">
+          <div className="brand">
+            <div className="brand-icon">💎</div>
+            <h1>Recargas Diamantes</h1>
+            <p>
+              Recarga tus juegos de forma rápida,
+              sencilla y segura.
+            </p>
+          </div>
+        </div>
+      </header>
+      <main className="container main">
+        <div className="card">
+          {error && (
+            <div className="alert error">
+              ❌ {error}
+            </div>
+          )}
+          {message && (
+            <div className="alert success">
+              ✅ {message}
+            </div>
+          )}
+          <section className="section">
+            <h2>🎮 Selecciona tu juego</h2>
+            <div className="games">
+              {Object.entries(GAME_INFO).map(
+                ([key, info]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`game ${
+                      gameKey === key
+                        ? "active"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      changeGame(key)
+                    }
+                  >
+                    <span className="game-icon">
+                      {info.icon}
+                    </span>
+                    <span className="game-name">
+                      {info.name}
+                    </span>
+                  </button>
+                )
+              )}
+            </div>
+          </section>
+          <form onSubmit={prepareOrder}>
+            <section className="section">
+              <h2>💎 Selecciona tu paquete</h2>
+              <div className="packages">
+                {packageEntries.map(
+                  ([key, pack]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`package ${
+                        selectedPackageKey === key
+                          ? "selected"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        changePackage(key)
+                      }
+                    >
+                      <strong>
+                        {getPackageLabel(
+                          gameKey,
+                          pack
+                        )}
+                      </strong>
+                      <span>
+                        Desde{" "}
+                        {payment === "mlc"
+                          ? `${formatMlc(
+                              pack.sale_mlc
+                            )} MLC`
+                          : `${formatCup(
+                              payment ===
+                                "transfermovil"
+                                ? pack.sale_cup_transfermovil
+                                : pack.sale_cup_saldo_movil
+                            )} CUP`}
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
+            </section>
+            <section className="section">
+              <h2>👤 Datos del jugador</h2>
+              <div className="input-group">
+                <label>
+                  {gameInfo.idLabel}
+                </label>
+                <input
+                  type="text"
+                  value={playerId}
+                  onChange={(e) =>
+                    changePlayerId(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Introduce tu ID"
+                  inputMode="numeric"
+                />
+              </div>
+              {gameInfo.requiresZone && (
+                <div className="input-group">
+                  <label>Zone ID</label>
+                  <input
+                    type="text"
+                    value={zoneId}
+                    onChange={(e) =>
+                      changeZoneId(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Introduce tu Zone ID"
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                className="validate-button"
+                onClick={validatePlayer}
+                disabled={loadingValidation}
+              >
+                {loadingValidation
+                  ? "Validando..."
+                  : "🔍 Validar jugador"}
+              </button>
+              {playerValidated && (
+                <div className="validated">
+                  <strong>
+                    ✅ Jugador validado
+                  </strong>
+                  {playerName && (
+                    <span>
+                      Nombre: {playerName}
+                    </span>
+                  )}
+                </div>
+              )}
+            </section>
+            <section className="section">
+              <h2>💳 Método de pago</h2>
+              <div className="payments">
+                {PAYMENT_METHODS.map(
+                  (method) => (
+                    <button
+                      key={method.id}
+                      type="button"
+                      className={`payment ${
+                        payment === method.id
+                          ? "selected"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        setPayment(
+                          method.id
+                        );
+                        setShowOrder(false);
+                      }}
+                    >
+                      <span className="payment-icon">
+                        {method.icon}
+                      </span>
+                      <span>
+                        {method.name}
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
+            </section>
+            <section className="summary">
+              <div>
+                <span>Juego</span>
+                <strong>
+                  {gameInfo.name}
+                </strong>
+              </div>
+              <div>
+                <span>Paquete</span>
+                <strong>
+                  {selectedPackage
+                    ? getPackageLabel(
+                        gameKey,
+                        selectedPackage
+                      )
+                    : "—"}
+                </strong>
+              </div>
+              <div>
+                <span>Pago</span>
+                <strong>
+                  {
+                    PAYMENT_METHODS.find(
+                      (item) =>
+                        item.id === payment
+                    )?.name
+                  }
+                </strong>
+              </div>
+              <div className="total">
+                <span>Total</span>
+                <strong>
+                  {selectedPrice.text}
+                </strong>
+              </div>
+            </section>
+            {!showOrder ? (
+              <button
+                type="submit"
+                className="continue-button"
+              >
+                Continuar con el pedido
+              </button>
+            ) : (
+              <div className="order-confirmation">
+                <h2>
+                  ✅ Pedido listo
+                </h2>
+                <p>
+                  Verifica los datos antes de
+                  continuar por WhatsApp.
+                </p>
+                <div className="confirmation-data">
+                  <p>
+                    <strong>Juego:</strong>{" "}
+                    {gameInfo.name}
+                  </p>
+                  <p>
+                    <strong>Paquete:</strong>{" "}
+                    {getPackageLabel(
+                      gameKey,
+                      selectedPackage
+                    )}
+                  </p>
+                  <p>
+                    <strong>ID:</strong>{" "}
+                    {playerId}
+                  </p>
+                  {gameInfo.requiresZone && (
+                    <p>
+                      <strong>
+                        Zone ID:
+                      </strong>{" "}
+                      {zoneId}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Pago:</strong>{" "}
+                    {
+                      PAYMENT_METHODS.find(
+                        (item) =>
+                          item.id === payment
+                      )?.name
+                    }
+                  </p>
+                  <p className="confirmation-total">
+                    <strong>
+                      Total:
+                    </strong>{" "}
+                    {selectedPrice.text}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="whatsapp-button"
+                  onClick={
+                    sendWhatsAppOrder
+                  }
+                >
+                  📲 Enviar pedido por WhatsApp
+                </button>
+                <button
+                  type="button"
+                  className="back-button"
+                  onClick={() =>
+                    setShowOrder(false)
+                  }
+                >
+                  ← Modificar pedido
+                </button>
+              </div>
+            )}
+          </form>
+        </div>
+        <div className="info">
+          <div>
+            <strong>🔐 Seguro</strong>
+            <span>
+              Validamos tu ID antes de la recarga.
+            </span>
+          </div>
+          <div>
+            <strong>⚡ Rápido</strong>
+            <span>
+              Procesamos tus pedidos rápidamente.
+            </span>
+          </div>
+          <div>
+            <strong>💬 Atención</strong>
+            <span>
+              Soporte directo por WhatsApp.
+            </span>
+          </div>
+        </div>
+      </main>
+      <footer>
+        <p>
+          © {new Date().getFullYear()} Recargas
+          Diamantes
+        </p>
+      </footer>
       <style>{`
         * {
           box-sizing: border-box;
         }
-
         body {
           margin: 0;
           font-family: Arial, Helvetica, sans-serif;
-          background: #f4f7fb;
+          background: #f3f6fb;
           color: #172033;
         }
-
         button,
         input {
           font: inherit;
         }
-
+        button {
+          -webkit-tap-highlight-color: transparent;
+        }
         .app {
           min-height: 100vh;
         }
-
         .hero {
-          background: linear-gradient(135deg, #111827, #2563eb);
+          background:
+            linear-gradient(
+              135deg,
+              #111827,
+              #1d4ed8
+            );
           color: white;
-          padding: 42px 20px 70px;
+          padding: 42px 20px 75px;
         }
-
         .container {
           width: min(100%, 1050px);
           margin: 0 auto;
         }
-
         .brand {
           text-align: center;
         }
-
+        .brand-icon {
+          font-size: 46px;
+          margin-bottom: 8px;
+        }
         .brand h1 {
           margin: 0;
-          font-size: clamp(32px, 7vw, 54px);
+          font-size: clamp(
+            32px,
+            7vw,
+            55px
+          );
           font-weight: 900;
         }
-
         .brand p {
           margin: 12px auto 0;
           max-width: 650px;
           font-size: 17px;
           line-height: 1.5;
-          opacity: .9;
+          opacity: .92;
         }
-
+        .main {
+          padding: 0 16px 40px;
+        }
         .card {
           background: white;
-          border-radius: 22px;
-          padding: 24px;
-          box-shadow: 0 18px 50px rgba(15, 23, 42, .12);
-          margin-top: -35px;
+          border-radius: 24px;
+          padding: 25px;
+          box-shadow:
+            0 18px 50px
+            rgba(15, 23, 42, .13);
+          margin-top: -38px;
           position: relative;
         }
-
         .section {
-          margin-bottom: 28px;
+          margin-bottom: 30px;
         }
-
         .section h2 {
-          margin: 0 0 14px;
+          margin: 0 0 15px;
           font-size: 21px;
         }
-
         .games {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns:
+            repeat(3, 1fr);
           gap: 12px;
         }
-
         .game {
           border: 2px solid #e5e7eb;
-          background: #fff;
-          border-radius: 16px;
-          padding: 18px 12px;
+          background: white;
+          border-radius: 17px;
+          padding: 18px 10px;
           cursor: pointer;
           text-align: center;
+          color: #172033;
           transition: .2s;
         }
-
         .game:hover {
-          transform: translateY(-2px);
+          transform:
+            translateY(-2px);
         }
-
         .game.active {
           border-color: #2563eb;
           background: #eff6ff;
         }
-
         .game-icon {
           display: block;
           font-size: 32px;
           margin-bottom: 7px;
         }
-
         .game-name {
           font-weight: 800;
         }
-
+        .packages {
+          display: grid;
+          grid-template-columns:
+            repeat(3, 1fr);
+          gap: 10px;
+        }
+        .package {
+          background: white;
+          border: 2px solid #e5e7eb;
+          border-radius: 15px;
+          padding: 15px 10px;
+          cursor: pointer;
+          color: #172033;
+          text-align: center;
+        }
+        .package.selected {
+          border-color: #2563eb;
+          background: #eff6ff;
+        }
+        .package strong,
+        .package span {
+          display: block;
+        }
+        .package strong {
+          font-size: 17px;
+          margin-bottom: 6px;
+        }
+        .package span {
+          color: #64748b;
+          font-size: 13px;
+        }
+        .input-group {
+          margin-bottom: 15px;
+        }
         label {
           display: block;
           font-weight: 700;
           margin-bottom: 7px;
         }
-
         input {
           width: 100%;
           border: 1px solid #d1d5db;
           border-radius: 12px;
           padding: 14px;
           outline: none;
+          background: white;
         }
-
         input:focus {
           border-color: #2563eb;
+          box-shadow:
+            0 0 0 3px
+            rgba(37,99,235,.10);
         }
-
-        .two-columns {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
-        }
-
-        .packages {
-          display: grid;
-          grid-template-columns: repeat(5, 1fr);
-          gap: 10px;
-        }
-
-        .package {
-          border: 2px solid #e5e7eb;
-          background: white;
-          border-radius: 14px;
-          padding: 14px 8px;
-          cursor: pointer;
-          text-align: center;
-          font-weight: 800;
-        }
-
-        .package.active {
-          border-color: #2563eb;
-          background: #eff6ff;
-          color: #1d4ed8;
-        }
-
-        .payments {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-        }
-
-        .payment {
-          border: 2px solid #e5e7eb;
-          border-radius: 15px;
-          padding: 17px 10px;
-          cursor: pointer;
-          background: white;
-          text-align: center;
-        }
-
-        .payment.active {
-          border-color: #16a34a;
-          background: #f0fdf4;
-        }
-
-        .payment strong {
-          display: block;
-          margin-bottom: 5px;
-        }
-
-        .price {
-          font-size: 19px;
-          font-weight: 900;
-        }
-
-        .submit {
+        .validate-button {
           width: 100%;
           border: 0;
-          border-radius: 15px;
-          background: #2563eb;
-          color: white;
-          padding: 17px;
-          font-size: 18px;
-          font-weight: 900;
+          border-radius: 12px;
+          padding: 14px;
+          background: #e0ecff;
+          color: #1d4ed8;
+          font-weight: 800;
           cursor: pointer;
         }
-
-        .submit:hover {
-          background: #1d4ed8;
+        .validate-button:disabled {
+          opacity: .6;
+          cursor: wait;
         }
-
-        .order {
-          margin-top: 25px;
-          border-radius: 18px;
-          padding: 20px;
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
+        .validated {
+          margin-top: 12px;
+          padding: 13px;
+          border-radius: 12px;
+          background: #ecfdf5;
+          color: #047857;
         }
-
-        .order h2 {
-          margin-top: 0;
+        .validated strong,
+        .validated span {
+          display: block;
         }
-
-        .order-row {
+        .validated span {
+          margin-top: 4px;
+        }
+        .payments {
+          display: grid;
+          grid-template-columns:
+            repeat(3, 1fr);
+          gap: 10px;
+        }
+        .payment {
+          border: 2px solid #e5e7eb;
+          background: white;
+          border-radius: 15px;
+          padding: 15px 8px;
+          cursor: pointer;
+          color: #172033;
+          font-weight: 700;
+        }
+        .payment.selected {
+          border-color: #2563eb;
+          background: #eff6ff;
+        }
+        .payment-icon {
+          display: block;
+          font-size: 25px;
+          margin-bottom: 6px;
+        }
+        .summary {
+          background: #f8fafc;
+          border-radius: 17px;
+          padding: 18px;
+          margin-top: 10px;
+        }
+        .summary > div {
           display: flex;
           justify-content: space-between;
-          gap: 15px;
+          gap: 20px;
           padding: 9px 0;
-          border-bottom: 1px solid #dcfce7;
+          border-bottom: 1px solid #e5e7eb;
         }
-
-        .order-row:last-child {
+        .summary > div:last-child {
           border-bottom: 0;
         }
-
-        .whatsapp {
+        .summary span {
+          color: #64748b;
+        }
+        .summary strong {
+          text-align: right;
+        }
+        .summary .total {
+          margin-top: 5px;
+          padding-top: 15px;
+          font-size: 20px;
+        }
+        .summary .total strong {
+          color: #2563eb;
+        }
+        .continue-button,
+        .whatsapp-button {
           width: 100%;
-          margin-top: 18px;
           border: 0;
           border-radius: 14px;
           padding: 16px;
-          background: #25d366;
           color: white;
           font-weight: 900;
-          font-size: 17px;
           cursor: pointer;
+          font-size: 17px;
         }
-
-        .whatsapp:hover {
-          background: #1ebe5d;
+        .continue-button {
+          background: #2563eb;
+          margin-top: 20px;
         }
-
-        .contact {
-          text-align: center;
-          margin-top: 28px;
-          padding: 25px;
+        .continue-button:hover {
+          background: #1d4ed8;
+        }
+        .whatsapp-button {
+          background: #16a34a;
+          margin-top: 15px;
+        }
+        .back-button {
+          width: 100%;
+          border: 0;
+          background: transparent;
+          color: #64748b;
+          padding: 14px;
+          cursor: pointer;
+          font-weight: 700;
+        }
+        .order-confirmation {
+          margin-top: 20px;
+          padding: 20px;
           background: #f8fafc;
           border-radius: 18px;
         }
-
-        .contact h2 {
+        .order-confirmation h2 {
           margin-top: 0;
         }
-
-        .contact p {
-          line-height: 1.5;
-          color: #4b5563;
+        .confirmation-data {
+          background: white;
+          border-radius: 14px;
+          padding: 15px;
         }
-
+        .confirmation-data p {
+          margin: 8px 0;
+        }
+        .confirmation-total {
+          font-size: 20px;
+          color: #2563eb;
+        }
+        .alert {
+          border-radius: 13px;
+          padding: 13px 15px;
+          margin-bottom: 20px;
+          font-weight: 700;
+        }
+        .alert.error {
+          background: #fef2f2;
+          color: #b91c1c;
+        }
+        .alert.success {
+          background: #ecfdf5;
+          color: #047857;
+        }
+        .info {
+          display: grid;
+          grid-template-columns:
+            repeat(3, 1fr);
+          gap: 15px;
+          margin-top: 25px;
+        }
+        .info > div {
+          background: white;
+          border-radius: 16px;
+          padding: 18px;
+          text-align: center;
+          box-shadow:
+            0 8px 25px
+            rgba(15,23,42,.06);
+        }
+        .info strong,
+        .info span {
+          display: block;
+        }
+        .info strong {
+          margin-bottom: 7px;
+        }
+        .info span {
+          color: #64748b;
+          font-size: 14px;
+          line-height: 1.4;
+        }
         footer {
           text-align: center;
-          padding: 30px 15px;
-          color: #6b7280;
-          font-size: 14px;
+          padding: 20px;
+          color: #64748b;
         }
-
-        @media (max-width: 800px) {
-          .games {
+        @media (max-width: 700px) {
+          .card {
+            padding: 18px;
+          }
+          .games,
+          .packages,
+          .payments {
+            grid-template-columns:
+              repeat(2, 1fr);
+          }
+          .info {
             grid-template-columns: 1fr;
           }
-
-          .packages {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
+        }
+        @media (max-width: 420px) {
+          .games,
+          .packages,
           .payments {
             grid-template-columns: 1fr;
           }
-
-          .two-columns {
-            grid-template-columns: 1fr;
+          .summary > div {
+            flex-direction: column;
+            gap: 3px;
+          }
+          .summary strong {
+            text-align: left;
           }
         }
       `}</style>
-
-      <header className="hero">
-        <div className="container brand">
-          <h1>💎 Recargas Diamantes</h1>
-          <p>
-            Recarga tus juegos de forma rápida y sencilla.
-            Selecciona tu juego, paquete y método de pago.
-          </p>
-        </div>
-      </header>
-
-      <main className="container">
-        <div className="card">
-          <form onSubmit={submitOrder}>
-            <section className="section">
-              <h2>🎮 Selecciona tu juego</h2>
-
-              <div className="games">
-                {Object.entries(games).map(([key, item]) => (
-                  <button
-                    type="button"
-                    className={`game ${gameId === key ? "active" : ""}`}
-                    key={key}
-                    onClick={() => changeGame(key)}
-                  >
-                    <span className="game-icon">{item.icon}</span>
-                    <span className="game-name">{item.name}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="section">
-              <h2>👤 Datos del jugador</h2>
-
-              <div className="two-columns">
-                <div>
-                  <label htmlFor="playerId">{game.idLabel}</label>
-                  <input
-                    id="playerId"
-                    value={playerId}
-                    onChange={(e) => setPlayerId(e.target.value)}
-                    placeholder="Introduce el ID"
-                  />
-                </div>
-
-                {gameId === "mobileLegends" && (
-                  <div>
-                    <label htmlFor="zoneId">{game.zoneLabel}</label>
-                    <input
-                      id="zoneId"
-                      value={zoneId}
-                      onChange={(e) => setZoneId(e.target.value)}
-                      placeholder="Introduce el Zone ID"
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="section">
-              <h2>💎 Selecciona tu paquete</h2>
-
-              <div className="packages">
-                {game.packages.map((item, index) => (
-                  <button
-                    type="button"
-                    key={item.amount}
-                    className={`package ${
-                      packageIndex === index ? "active" : ""
-                    }`}
-                    onClick={() => {
-                      setPackageIndex(index);
-                      setShowOrder(false);
-                    }}
-                  >
-                    {item.amount}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="section">
-              <h2>💳 Método de pago</h2>
-
-              <div className="payments">
-                {paymentMethods.map((method) => {
-                  const methodPrice =
-                    method.id === "transfer"
-                      ? selectedPackage.transfer
-                      : method.id === "saldo"
-                      ? selectedPackage.saldo
-                      : selectedPackage.mlc;
-
-                  return (
-                    <button
-                      type="button"
-                      key={method.id}
-                      className={`payment ${
-                        payment === method.id ? "active" : ""
-                      }`}
-                      onClick={() => {
-                        setPayment(method.id);
-                        setShowOrder(false);
-                      }}
-                    >
-                      <strong>{method.name}</strong>
-
-                      <span className="price">
-                        {formatPrice(methodPrice)}
-                        {method.id === "mlc" ? " MLC" : " CUP"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <button className="submit" type="submit">
-              Continuar con el pedido →
-            </button>
-          </form>
-
-          {showOrder && (
-            <section className="order">
-              <h2>✅ Pedido preparado</h2>
-
-              <div className="order-row">
-                <span>Número de pedido</span>
-                <strong>{orderNumber}</strong>
-              </div>
-
-              <div className="order-row">
-                <span>Juego</span>
-                <strong>{game.name}</strong>
-              </div>
-
-              <div className="order-row">
-                <span>Paquete</span>
-                <strong>{selectedPackage.amount}</strong>
-              </div>
-
-              <div className="order-row">
-                <span>ID</span>
-                <strong>{playerId}</strong>
-              </div>
-
-              {gameId === "mobileLegends" && (
-                <div className="order-row">
-                  <span>Zone ID</span>
-                  <strong>{zoneId}</strong>
-                </div>
-              )}
-
-              <div className="order-row">
-                <span>Método de pago</span>
-                <strong>{paymentName}</strong>
-              </div>
-
-              <div className="order-row">
-                <span>Total</span>
-                <strong>
-                  {formatPrice(price)}
-                  {payment === "mlc" ? " MLC" : " CUP"}
-                </strong>
-              </div>
-
-              <button
-                className="whatsapp"
-                type="button"
-                onClick={sendWhatsAppOrder}
-              >
-                📲 Enviar pedido por WhatsApp
-              </button>
-            </section>
-          )}
-
-          <section className="contact">
-            <h2>🎮 ¿Quieres recargar otro juego?</h2>
-
-            <p>
-              Si el juego que buscas no aparece en nuestra lista,
-              contacta con el administrador y te ayudaremos con tu recarga.
-            </p>
-
-            <p>
-              📱 WhatsApp: <strong>+53 5050 4941</strong>
-            </p>
-          </section>
-        </div>
-      </main>
-
-      <footer>
-        © 2026 Recargas Diamantes · Servicio de recargas digitales
-      </footer>
     </div>
   );
 }
-
 export default App;
