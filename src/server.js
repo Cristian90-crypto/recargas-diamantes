@@ -12,7 +12,7 @@ app.use((req, res, next) => {
   );
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Admin-Secret"
   );
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -23,38 +23,34 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const SHOP2TOPUP_API_KEY =
   process.env.SHOP2TOPUP_API_KEY;
+const ADMIN_SECRET =
+  process.env.ADMIN_SECRET;
 const BASE_URL =
   "https://portal.shop2topup.com/api/endpoints/v1";
 // ======================================================
 // CONFIGURACIÓN DE PRECIOS
 // ======================================================
-//
-// REGLA DEFINITIVA:
-//
-// 100 DIAMANTES FREE FIRE
-//
-// Costo Shop2TopUp: 0.731179 USD
-// Precio comercial: 1.00 USD
-//
-// Por lo tanto:
-//
-// Transfermóvil = 1,000 CUP
-// Saldo móvil   =   500 CUP
-// MLC           =     2 MLC
-//
-// Los demás paquetes se calculan proporcionalmente
-// al costo real de Shop2TopUp.
-//
-// NO se agrega otro porcentaje después.
-// ======================================================
 const PRICING = {
   transfermovil_cup_per_usd: 1000,
   saldo_movil_cup_per_usd: 500,
   mlc_per_usd: 2,
-  // Paquete de referencia
   reference_cost_usd: 0.731179,
   reference_sale_usd: 1.0,
 };
+// ======================================================
+// PEDIDOS PENDIENTES
+// ======================================================
+//
+// IMPORTANTE:
+//
+// Estos pedidos NO se mandan a Shop2TopUp todavía.
+//
+// Primero quedan pendientes de pago.
+//
+// Después tú los autorizas manualmente.
+//
+// ======================================================
+const pendingOrders = new Map();
 // ======================================================
 // REDONDEO
 // ======================================================
@@ -69,37 +65,27 @@ function calculatePrices(costUsd) {
   if (!Number.isFinite(cost) || cost <= 0) {
     throw new Error("Costo USD inválido.");
   }
-  // Factor necesario para convertir:
-  //
-  // 0.731179 USD → 1.00 USD
-  //
-  // Este mismo factor se aplica proporcionalmente
-  // a todos los demás paquetes.
   const pricingFactor =
     PRICING.reference_sale_usd /
     PRICING.reference_cost_usd;
   const saleUsd =
     cost * pricingFactor;
-  // Transfermóvil
   const saleTransferMovil =
     Math.round(
       saleUsd *
         PRICING.transfermovil_cup_per_usd
     );
-  // Saldo móvil
   const saleSaldoMovil =
     Math.round(
       saleUsd *
         PRICING.saldo_movil_cup_per_usd
     );
-  // MLC
   const saleMlc =
     roundMoney(
       saleUsd *
         PRICING.mlc_per_usd,
       2
     );
-  // Ganancia real
   const profitUsd =
     saleUsd - cost;
   const profitPercent =
@@ -120,7 +106,7 @@ function calculatePrices(costUsd) {
   };
 }
 // ======================================================
-// CONFIGURACIÓN DE PRODUCTOS
+// PRODUCTOS
 // ======================================================
 const PRODUCTS = {
   freefire: {
@@ -313,24 +299,19 @@ const PRODUCTS = {
 // ======================================================
 function getProductsWithPrices() {
   const result = {};
-  for (const [gameKey, game] of Object.entries(
-    PRODUCTS
-  )) {
+  for (const [gameKey, game] of Object.entries(PRODUCTS)) {
     result[gameKey] = {
       name: game.name,
       slug: game.slug,
       requirements: game.requirements,
       packages: {},
     };
-    for (const [
-      packageKey,
-      product,
-    ] of Object.entries(game.packages)) {
+    for (const [packageKey, product] of Object.entries(
+      game.packages
+    )) {
       const prices =
         calculatePrices(product.cost_usd);
-      result[gameKey].packages[
-        packageKey
-      ] = {
+      result[gameKey].packages[packageKey] = {
         ...product,
         cost_usd:
           Number(product.cost_usd).toFixed(6),
@@ -364,7 +345,7 @@ function checkCredentials() {
   }
 }
 // ======================================================
-// PETICIONES A SHOP2TOPUP
+// PETICIONES SHOP2TOPUP
 // ======================================================
 async function shop2topupRequest(
   path,
@@ -414,11 +395,11 @@ async function shop2topupRequest(
   return data;
 }
 // ======================================================
-// MANEJO DE ERRORES
+// ERRORES
 // ======================================================
 function sendError(res, error) {
   console.error(
-    "SHOP2TOPUP ERROR:",
+    "ERROR:",
     error
   );
   res.status(
@@ -429,6 +410,31 @@ function sendError(res, error) {
     details:
       error.details || null,
   });
+}
+// ======================================================
+// AUTORIZACIÓN ADMINISTRATIVA
+// ======================================================
+function checkAdmin(req, res, next) {
+  if (!ADMIN_SECRET) {
+    return res.status(503).json({
+      ok: false,
+      error:
+        "ADMIN_SECRET no está configurado en Render.",
+    });
+  }
+  const suppliedSecret =
+    req.headers["x-admin-secret"];
+  if (
+    !suppliedSecret ||
+    suppliedSecret !== ADMIN_SECRET
+  ) {
+    return res.status(401).json({
+      ok: false,
+      error:
+        "No autorizado.",
+    });
+  }
+  next();
 }
 // ======================================================
 // HEALTH CHECK
@@ -460,6 +466,10 @@ app.get(
       api_configured:
         Boolean(
           SHOP2TOPUP_API_KEY
+        ),
+      admin_configured:
+        Boolean(
+          ADMIN_SECRET
         ),
       base_url:
         BASE_URL,
@@ -530,13 +540,11 @@ app.get(
       const query =
         new URLSearchParams();
       if (
-        req.query
-          .big_category_id
+        req.query.big_category_id
       ) {
         query.set(
           "big_category_id",
-          req.query
-            .big_category_id
+          req.query.big_category_id
         );
       }
       const suffix =
@@ -636,11 +644,9 @@ app.get(
       currency: "USD",
       pricing: {
         reference_cost_usd:
-          PRICING
-            .reference_cost_usd,
+          PRICING.reference_cost_usd,
         reference_sale_usd:
-          PRICING
-            .reference_sale_usd,
+          PRICING.reference_sale_usd,
         transfermovil_cup_per_usd:
           PRICING
             .transfermovil_cup_per_usd,
@@ -780,7 +786,15 @@ app.post(
   }
 );
 // ======================================================
-// CREAR ORDEN
+// CREAR PEDIDO PENDIENTE
+// ======================================================
+//
+// ESTE ENDPOINT YA NO CREA UNA ORDEN EN SHOP2TOPUP.
+//
+// Solamente guarda el pedido localmente.
+//
+// NO DESCUENTA SALDO.
+//
 // ======================================================
 app.post(
   "/api/order",
@@ -794,7 +808,8 @@ app.post(
         player_id,
         zone_id,
         expected_unit_price,
-        reference_id,
+        payment_method,
+        player_name,
       } = req.body;
       if (!player_id) {
         return res.status(400).json({
@@ -803,65 +818,28 @@ app.post(
             "player_id es obligatorio.",
         });
       }
-      let subCategoryId =
-        Number(
-          sub_category_id
-        );
-      let expectedPrice =
-        expected_unit_price;
-      if (
-        !subCategoryId &&
-        game &&
-        packageKey
-      ) {
-        const product =
-          PRODUCTS[
-            String(
-              game
-            ).toLowerCase()
-          ];
-        if (!product) {
-          return res.status(400).json({
-            ok: false,
-            error:
-              "Juego no válido.",
-          });
-        }
-        const selected =
-          product.packages[
-            String(
-              packageKey
-            )
-          ];
-        if (!selected) {
-          return res.status(400).json({
-            ok: false,
-            error:
-              "Paquete no válido.",
-          });
-        }
-        subCategoryId =
-          selected
-            .sub_category_id;
-        // Shop2TopUp debe recibir
-        // el costo REAL del producto,
-        // no nuestro precio de venta.
-        if (
-          expectedPrice ===
-            undefined ||
-          expectedPrice ===
-            null ||
-          expectedPrice === ""
-        ) {
-          expectedPrice =
-            selected.cost_usd;
-        }
-      }
-      if (!subCategoryId) {
+      const gameKey =
+        String(
+          game || ""
+        ).toLowerCase();
+      const product =
+        PRODUCTS[gameKey];
+      if (!product) {
         return res.status(400).json({
           ok: false,
           error:
-            "sub_category_id es obligatorio.",
+            "Juego no válido.",
+        });
+      }
+      const selected =
+        product.packages[
+          String(packageKey)
+        ];
+      if (!selected) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Paquete no válido.",
         });
       }
       const numericQuantity =
@@ -878,6 +856,18 @@ app.post(
             "quantity debe ser un número entero mayor que 0.",
         });
       }
+      const subCategoryId =
+        Number(
+          sub_category_id ||
+          selected.sub_category_id
+        );
+      if (!subCategoryId) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "sub_category_id es obligatorio.",
+        });
+      }
       const requirements = {
         player_id:
           String(player_id),
@@ -889,49 +879,378 @@ app.post(
         requirements.zone_id =
           String(zone_id);
       }
+      const prices =
+        calculatePrices(
+          selected.cost_usd
+        );
       const orderId =
-        reference_id &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          String(reference_id)
-        )
-          ? String(reference_id)
-          : crypto.randomUUID();
-      const body = {
+        `RD-${Date.now()}-${crypto
+          .randomBytes(3)
+          .toString("hex")
+          .toUpperCase()}`;
+      const pendingOrder = {
         order_id:
           orderId,
+        status:
+          "pending_payment",
+        created_at:
+          new Date().toISOString(),
+        game:
+          gameKey,
+        game_name:
+          product.name,
+        package:
+          String(packageKey),
+        package_info:
+          selected,
         sub_category_id:
           subCategoryId,
         quantity:
           numericQuantity,
         requirements,
+        player_id:
+          String(player_id),
+        zone_id:
+          zone_id
+            ? String(zone_id)
+            : "",
+        player_name:
+          player_name
+            ? String(player_name)
+            : "",
+        payment_method:
+          payment_method
+            ? String(payment_method)
+            : "transfermovil",
+        cost_usd:
+          Number(
+            selected.cost_usd
+          ),
+        sale_usd:
+          prices.sale_usd,
+        sale_cup_transfermovil:
+          prices.sale_cup_transfermovil,
+        sale_cup_saldo_movil:
+          prices.sale_cup_saldo_movil,
+        sale_mlc:
+          prices.sale_mlc,
+        profit_usd:
+          prices.profit_usd,
+        profit_percent:
+          prices.profit_percent,
+        expected_unit_price:
+          expected_unit_price ||
+          selected.cost_usd,
+        provider_order_id:
+          null,
+        payment_verified:
+          false,
       };
-      if (
-        expectedPrice !==
-          undefined &&
-        expectedPrice !==
-          null &&
-        expectedPrice !== ""
-      ) {
-        body.expected_unit_price =
-          String(
-            expectedPrice
-          );
-      }
+      pendingOrders.set(
+        orderId,
+        pendingOrder
+      );
       console.log(
-        "Creating SHOP2TOPUP order:",
-        {
+        "PEDIDO PENDIENTE:",
+        JSON.stringify(
+          pendingOrder,
+          null,
+          2
+        )
+      );
+      res.json({
+        ok: true,
+        data: {
           order_id:
             orderId,
-          sub_category_id:
-            subCategoryId,
-          quantity:
-            numericQuantity,
-          requirements,
-          expected_unit_price:
-            body
-              .expected_unit_price ||
-            null,
-        }
+          status:
+            "pending_payment",
+          payment_verified:
+            false,
+          message:
+            "Pedido creado. Esperando confirmación de pago.",
+          order:
+            pendingOrder,
+        },
+      });
+    } catch (error) {
+      sendError(
+        res,
+        error
+      );
+    }
+  }
+);
+// ======================================================
+// CONSULTAR PEDIDO
+// ======================================================
+//
+// Primero busca pedidos locales pendientes.
+//
+// Si no existe, intenta consultar Shop2TopUp.
+//
+// ======================================================
+app.get(
+  "/api/order/:orderId",
+  async (req, res) => {
+    try {
+      const orderId =
+        String(
+          req.params.orderId
+        );
+      const localOrder =
+        pendingOrders.get(
+          orderId
+        );
+      if (localOrder) {
+        return res.json({
+          ok: true,
+          source:
+            "local",
+          data:
+            localOrder,
+        });
+      }
+      const data =
+        await shop2topupRequest(
+          `/orders/${encodeURIComponent(
+            orderId
+          )}`
+        );
+      res.json({
+        ok: true,
+        source:
+          "shop2topup",
+        data,
+      });
+    } catch (error) {
+      sendError(
+        res,
+        error
+      );
+    }
+  }
+);
+// ======================================================
+// LISTAR PEDIDOS PENDIENTES
+// ======================================================
+//
+// SOLO ADMIN.
+//
+// ======================================================
+app.get(
+  "/api/admin/orders",
+  checkAdmin,
+  (_req, res) => {
+    const orders =
+      Array.from(
+        pendingOrders.values()
+      );
+    res.json({
+      ok: true,
+      count:
+        orders.length,
+      orders,
+    });
+  }
+);
+// ======================================================
+// VER UN PEDIDO ADMIN
+// ======================================================
+app.get(
+  "/api/admin/orders/:orderId",
+  checkAdmin,
+  (req, res) => {
+    const order =
+      pendingOrders.get(
+        String(
+          req.params.orderId
+        )
+      );
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
+    }
+    res.json({
+      ok: true,
+      order,
+    });
+  }
+);
+// ======================================================
+// MARCAR PAGO COMO VERIFICADO
+// ======================================================
+//
+// IMPORTANTE:
+//
+// Esto solamente marca el pedido como pagado.
+//
+// Todavía NO crea la orden en Shop2TopUp.
+//
+// Después usamos /approve.
+//
+// ======================================================
+app.post(
+  "/api/admin/orders/:orderId/verify-payment",
+  checkAdmin,
+  (req, res) => {
+    const orderId =
+      String(
+        req.params.orderId
+      );
+    const order =
+      pendingOrders.get(
+        orderId
+      );
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
+    }
+    if (
+      order.status ===
+      "completed"
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "Este pedido ya fue completado.",
+      });
+    }
+    order.payment_verified =
+      true;
+    order.payment_verified_at =
+      new Date().toISOString();
+    order.status =
+      "payment_verified";
+    pendingOrders.set(
+      orderId,
+      order
+    );
+    console.log(
+      `PAGO VERIFICADO: ${orderId}`
+    );
+    res.json({
+      ok: true,
+      message:
+        "Pago verificado correctamente.",
+      order,
+    });
+  }
+);
+// ======================================================
+// AUTORIZAR RECARGA
+// ======================================================
+//
+// ESTE ES EL ÚNICO PUNTO EN EL QUE:
+//
+// 1. Se comprueba que tú verificaste el pago.
+// 2. Se crea la orden real en Shop2TopUp.
+// 3. Shop2TopUp puede descontar tu saldo.
+// 4. Se guarda el ID de Shop2TopUp.
+//
+// ======================================================
+app.post(
+  "/api/admin/orders/:orderId/approve",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const orderId =
+        String(
+          req.params.orderId
+        );
+      const order =
+        pendingOrders.get(
+          orderId
+        );
+      if (!order) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Pedido no encontrado.",
+        });
+      }
+      if (
+        order.status ===
+        "completed"
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Este pedido ya fue procesado.",
+        });
+      }
+      if (
+        !order.payment_verified
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Primero debes verificar el pago.",
+        });
+      }
+      if (
+        order.provider_order_id
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Este pedido ya tiene una orden creada en Shop2TopUp.",
+          provider_order_id:
+            order.provider_order_id,
+        });
+      }
+      const providerOrderId =
+        crypto.randomUUID();
+      const requirements = {
+        player_id:
+          String(
+            order.player_id
+          ),
+      };
+      if (
+        order.zone_id
+      ) {
+        requirements.zone_id =
+          String(
+            order.zone_id
+          );
+      }
+      const body = {
+        order_id:
+          providerOrderId,
+        sub_category_id:
+          Number(
+            order.sub_category_id
+          ),
+        quantity:
+          Number(
+            order.quantity
+          ),
+        requirements,
+        expected_unit_price:
+          String(
+            order.cost_usd
+          ),
+      };
+      console.log(
+        "AUTORIZANDO RECARGA EN SHOP2TOPUP:",
+        JSON.stringify(
+          body,
+          null,
+          2
+        )
+      );
+      order.status =
+        "sending_to_shop2topup";
+      pendingOrders.set(
+        orderId,
+        order
       );
       const data =
         await shop2topupRequest(
@@ -939,9 +1258,26 @@ app.post(
           "POST",
           body
         );
+      order.provider_order_id =
+        providerOrderId;
+      order.provider_response =
+        data;
+      order.status =
+        "submitted";
+      order.submitted_at =
+        new Date().toISOString();
+      pendingOrders.set(
+        orderId,
+        order
+      );
+      console.log(
+        `RECARGA ENVIADA A SHOP2TOPUP: ${orderId}`
+      );
       res.json({
         ok: true,
-        data,
+        message:
+          "Recarga enviada correctamente a Shop2TopUp.",
+        order,
       });
     } catch (error) {
       sendError(
@@ -952,32 +1288,59 @@ app.post(
   }
 );
 // ======================================================
-// CONSULTAR ORDEN
+// CANCELAR PEDIDO
 // ======================================================
-app.get(
-  "/api/order/:orderId",
-  async (req, res) => {
-    try {
-      const data =
-        await shop2topupRequest(
-          `/orders/${encodeURIComponent(
-            req.params.orderId
-          )}`
-        );
-      res.json({
-        ok: true,
-        data,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
+app.post(
+  "/api/admin/orders/:orderId/cancel",
+  checkAdmin,
+  (req, res) => {
+    const orderId =
+      String(
+        req.params.orderId
       );
+    const order =
+      pendingOrders.get(
+        orderId
+      );
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
     }
+    if (
+      order.provider_order_id
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "No puedes cancelar desde aquí un pedido que ya fue enviado a Shop2TopUp.",
+      });
+    }
+    order.status =
+      "cancelled";
+    order.cancelled_at =
+      new Date().toISOString();
+    pendingOrders.set(
+      orderId,
+      order
+    );
+    res.json({
+      ok: true,
+      message:
+        "Pedido cancelado.",
+      order,
+    });
   }
 );
 // ======================================================
-// LISTAR ÓRDENES
+// LISTAR ÓRDENES SHOP2TOPUP
+// ======================================================
+//
+// Esta ruta se conserva para consultar
+// las órdenes reales del proveedor.
+//
 // ======================================================
 app.get(
   "/api/orders",
@@ -1042,7 +1405,7 @@ app.post(
   }
 );
 // ======================================================
-// WEBHOOK
+// WEBHOOK SHOP2TOPUP
 // ======================================================
 app.post(
   "/api/webhook/shop2topup",
@@ -1090,6 +1453,13 @@ app.listen(
         SHOP2TOPUP_API_KEY
           ? "CONFIGURADA"
           : "NO CONFIGURADA"
+      }`
+    );
+    console.log(
+      `ADMIN_SECRET: ${
+        ADMIN_SECRET
+          ? "CONFIGURADO"
+          : "NO CONFIGURADO"
       }`
     );
     console.log(
