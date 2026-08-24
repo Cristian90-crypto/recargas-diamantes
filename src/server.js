@@ -26,15 +26,10 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const SHOP2TOPUP_API_KEY =
-  process.env.SHOP2TOPUP_API_KEY;
+const SHOP2TOPUP_API_KEY = process.env.SHOP2TOPUP_API_KEY;
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
-const ADMIN_SECRET =
-  process.env.ADMIN_SECRET;
-
-const SUPABASE_URL =
-  process.env.SUPABASE_URL;
-
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -301,13 +296,69 @@ const PRODUCTS = {
 };
 
 // ======================================================
+// NORMALIZAR JUEGO
+// ======================================================
+
+function normalizeGame(value) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+
+  const aliases = {
+    freefire: "freefire",
+    freefiregame: "freefire",
+
+    mobilelegends: "mobilelegends",
+    mobilelegendsbangbang: "mobilelegends",
+    mlbb: "mobilelegends",
+
+    pubg: "pubg",
+    pubgmobile: "pubg",
+  };
+
+  return aliases[normalized] || null;
+}
+
+// ======================================================
+// NORMALIZAR MÉTODO DE PAGO
+// ======================================================
+
+function normalizePaymentMethod(value) {
+  if (!value) {
+    return "transfermovil";
+  }
+
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  const aliases = {
+    transfermovil: "transfermovil",
+    transfer_movil: "transfermovil",
+    transferencia: "transfermovil",
+
+    saldo: "saldo_movil",
+    saldo_movil: "saldo_movil",
+    saldomovil: "saldo_movil",
+
+    mlc: "mlc",
+  };
+
+  return aliases[normalized] || null;
+}
+
+// ======================================================
 // UTILIDADES
 // ======================================================
 
 function roundMoney(value, decimals = 2) {
-  return Number(
-    Number(value).toFixed(decimals)
-  );
+  return Number(Number(value).toFixed(decimals));
 }
 
 function calculatePrices(costUsd) {
@@ -321,89 +372,70 @@ function calculatePrices(costUsd) {
     PRICING.reference_sale_usd /
     PRICING.reference_cost_usd;
 
-  const saleUsd =
-    cost * pricingFactor;
+  const saleUsd = cost * pricingFactor;
 
-  const saleTransferMovil =
-    Math.round(
-      saleUsd *
-        PRICING.transfermovil_cup_per_usd
-    );
+  const saleTransferMovil = Math.round(
+    saleUsd *
+      PRICING.transfermovil_cup_per_usd
+  );
 
-  const saleSaldoMovil =
-    Math.round(
-      saleUsd *
-        PRICING.saldo_movil_cup_per_usd
-    );
+  const saleSaldoMovil = Math.round(
+    saleUsd *
+      PRICING.saldo_movil_cup_per_usd
+  );
 
-  const saleMlc =
-    roundMoney(
-      saleUsd *
-        PRICING.mlc_per_usd,
-      2
-    );
+  const saleMlc = roundMoney(
+    saleUsd * PRICING.mlc_per_usd,
+    2
+  );
 
-  const profitUsd =
-    saleUsd - cost;
-
+  const profitUsd = saleUsd - cost;
   const profitPercent =
     (profitUsd / cost) * 100;
 
   return {
-    sale_usd:
-      roundMoney(saleUsd, 2),
-
+    sale_usd: roundMoney(saleUsd, 2),
     sale_cup_transfermovil:
       saleTransferMovil,
-
     sale_cup_saldo_movil:
       saleSaldoMovil,
-
-    sale_mlc:
-      saleMlc,
-
-    profit_usd:
-      roundMoney(profitUsd, 2),
-
-    profit_percent:
-      roundMoney(profitPercent, 2),
+    sale_mlc: saleMlc,
+    profit_usd: roundMoney(profitUsd, 2),
+    profit_percent: roundMoney(
+      profitPercent,
+      2
+    ),
   };
 }
 
 function getProductsWithPrices() {
   const result = {};
 
-  for (
-    const [gameKey, game]
-    of Object.entries(PRODUCTS)
-  ) {
+  for (const [gameKey, game] of Object.entries(
+    PRODUCTS
+  )) {
     result[gameKey] = {
       name: game.name,
       slug: game.slug,
-      requirements:
-        game.requirements,
+      requirements: game.requirements,
       packages: {},
     };
 
-    for (
-      const [packageKey, product]
-      of Object.entries(game.packages)
-    ) {
-      const prices =
-        calculatePrices(
-          product.cost_usd
-        );
+    for (const [
+      packageKey,
+      product,
+    ] of Object.entries(game.packages)) {
+      const prices = calculatePrices(
+        product.cost_usd
+      );
 
       result[gameKey].packages[
         packageKey
       ] = {
         ...product,
-
-        cost_usd:
-          Number(
-            product.cost_usd
-          ).toFixed(6),
-
+        cost_usd: Number(
+          product.cost_usd
+        ).toFixed(6),
         ...prices,
       };
     }
@@ -418,10 +450,9 @@ function getProductsWithPrices() {
 
 function checkSupabase() {
   if (!supabase) {
-    const error =
-      new Error(
-        "Supabase no está configurado correctamente en Render."
-      );
+    const error = new Error(
+      "Supabase no está configurado correctamente en Render."
+    );
 
     error.status = 503;
 
@@ -432,30 +463,35 @@ function checkSupabase() {
 async function saveOrder(order) {
   checkSupabase();
 
-  const {
-    data,
-    error,
-  } = await supabase
+  // Protección adicional:
+  // Supabase tiene game como NOT NULL.
+  if (!order.game) {
+    const error = new Error(
+      "No se puede guardar el pedido porque el juego no fue identificado."
+    );
+
+    error.status = 400;
+
+    throw error;
+  }
+
+  const row = {
+    order_id: order.order_id,
+    status: order.status,
+    created_at: order.created_at,
+
+    // Estos campos se guardan directamente
+    // para mantenerlos disponibles en Supabase.
+    game: order.game,
+
+    order_data: order,
+  };
+
+  const { data, error } = await supabase
     .from("orders")
-    .upsert(
-      {
-        order_id:
-          order.order_id,
-
-        status:
-          order.status,
-
-        created_at:
-          order.created_at,
-
-        order_data:
-          order,
-      },
-      {
-        onConflict:
-          "order_id",
-      }
-    )
+    .upsert(row, {
+      onConflict: "order_id",
+    })
     .select()
     .single();
 
@@ -465,14 +501,12 @@ async function saveOrder(order) {
       error
     );
 
-    const supabaseError =
-      new Error(
-        `No se pudo guardar el pedido en Supabase: ${error.message}`
-      );
+    const supabaseError = new Error(
+      `No se pudo guardar el pedido en Supabase: ${error.message}`
+    );
 
     supabaseError.status = 500;
-    supabaseError.details =
-      error;
+    supabaseError.details = error;
 
     throw supabaseError;
   }
@@ -483,18 +517,12 @@ async function saveOrder(order) {
 async function getOrder(orderId) {
   checkSupabase();
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .select(
-      "order_id,status,created_at,order_data"
+      "order_id,status,created_at,game,order_data"
     )
-    .eq(
-      "order_id",
-      orderId
-    )
+    .eq("order_id", orderId)
     .maybeSingle();
 
   if (error) {
@@ -503,14 +531,12 @@ async function getOrder(orderId) {
       error
     );
 
-    const supabaseError =
-      new Error(
-        `No se pudo consultar el pedido: ${error.message}`
-      );
+    const supabaseError = new Error(
+      `No se pudo consultar el pedido: ${error.message}`
+    );
 
     supabaseError.status = 500;
-    supabaseError.details =
-      error;
+    supabaseError.details = error;
 
     throw supabaseError;
   }
@@ -521,42 +547,36 @@ async function getOrder(orderId) {
 
   const orderData =
     data.order_data &&
-    typeof data.order_data ===
-      "object"
+    typeof data.order_data === "object"
       ? data.order_data
       : {};
 
   return {
     ...orderData,
 
-    order_id:
-      data.order_id,
+    order_id: data.order_id,
+    status: data.status,
+    created_at: data.created_at,
 
-    status:
-      data.status,
-
-    created_at:
-      data.created_at,
+    // El valor de la columna game tiene prioridad.
+    game:
+      data.game ||
+      orderData.game ||
+      null,
   };
 }
 
 async function getOrders() {
   checkSupabase();
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .select(
-      "order_id,status,created_at,order_data"
+      "order_id,status,created_at,game,order_data"
     )
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    );
+    .order("created_at", {
+      ascending: false,
+    });
 
   if (error) {
     console.error(
@@ -564,34 +584,28 @@ async function getOrders() {
       error
     );
 
-    const supabaseError =
-      new Error(
-        `No se pudieron consultar los pedidos: ${error.message}`
-      );
+    const supabaseError = new Error(
+      `No se pudieron consultar los pedidos: ${error.message}`
+    );
 
     supabaseError.status = 500;
-    supabaseError.details =
-      error;
+    supabaseError.details = error;
 
     throw supabaseError;
   }
 
-  return (
-    data || []
-  ).map(
-    (row) => ({
-      ...(row.order_data || {}),
+  return (data || []).map((row) => ({
+    ...(row.order_data || {}),
 
-      order_id:
-        row.order_id,
+    order_id: row.order_id,
+    status: row.status,
+    created_at: row.created_at,
 
-      status:
-        row.status,
-
-      created_at:
-        row.created_at,
-    })
-  );
+    game:
+      row.game ||
+      row.order_data?.game ||
+      null,
+  }));
 }
 
 // ======================================================
@@ -600,10 +614,9 @@ async function getOrders() {
 
 function checkCredentials() {
   if (!SHOP2TOPUP_API_KEY) {
-    const error =
-      new Error(
-        "SHOP2TOPUP_API_KEY no está configurada en Render."
-      );
+    const error = new Error(
+      "SHOP2TOPUP_API_KEY no está configurada en Render."
+    );
 
     error.status = 503;
 
@@ -622,38 +635,29 @@ async function shop2topupRequest(
     method,
 
     headers: {
-      Accept:
-        "application/json",
-
-      Authorization:
-        `Bearer ${SHOP2TOPUP_API_KEY}`,
-
-      "Content-Type":
-        "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${SHOP2TOPUP_API_KEY}`,
+      "Content-Type": "application/json",
     },
   };
 
   if (body !== undefined) {
-    options.body =
-      JSON.stringify(body);
+    options.body = JSON.stringify(body);
   }
 
-  const response =
-    await fetch(
-      `${BASE_URL}${path}`,
-      options
-    );
+  const response = await fetch(
+    `${BASE_URL}${path}`,
+    options
+  );
 
-  const text =
-    await response.text();
+  const text = await response.text();
 
   let data;
 
   try {
-    data =
-      text
-        ? JSON.parse(text)
-        : {};
+    data = text
+      ? JSON.parse(text)
+      : {};
   } catch {
     data = {
       raw: text,
@@ -661,16 +665,12 @@ async function shop2topupRequest(
   }
 
   if (!response.ok) {
-    const error =
-      new Error(
-        `SHOP2TOPUP API returned HTTP ${response.status}`
-      );
+    const error = new Error(
+      `SHOP2TOPUP API returned HTTP ${response.status}`
+    );
 
-    error.status =
-      response.status;
-
-    error.details =
-      data;
+    error.status = response.status;
+    error.details = data;
 
     throw error;
   }
@@ -679,18 +679,15 @@ async function shop2topupRequest(
     data &&
     data.success === false
   ) {
-    const error =
-      new Error(
-        data?.error?.message ||
-          "SHOP2TOPUP devolvió un error."
-      );
+    const error = new Error(
+      data?.error?.message ||
+        "SHOP2TOPUP devolvió un error."
+    );
 
     error.status =
-      response.status ||
-      400;
+      response.status || 400;
 
-    error.details =
-      data;
+    error.details = data;
 
     throw error;
   }
@@ -699,7 +696,7 @@ async function shop2topupRequest(
 }
 
 // ======================================================
-// EXTRAER SALDO
+// SALDO SHOP2TOPUP
 // ======================================================
 
 function extractShop2TopupBalance(data) {
@@ -708,20 +705,12 @@ function extractShop2TopupBalance(data) {
     data?.wallet,
     data?.balance,
     data?.account?.balance,
-
     data?.data?.account?.wallet,
     data?.data?.wallet,
     data?.data?.balance,
-
-    data?.data?.account?.balance,
-    data?.data?.available_balance,
-    data?.available_balance,
   ];
 
-  for (
-    const value
-    of possibleValues
-  ) {
+  for (const value of possibleValues) {
     if (
       value !== undefined &&
       value !== null &&
@@ -731,9 +720,7 @@ function extractShop2TopupBalance(data) {
         Number(value);
 
       if (
-        Number.isFinite(
-          numeric
-        ) &&
+        Number.isFinite(numeric) &&
         numeric >= 0
       ) {
         return numeric;
@@ -744,10 +731,6 @@ function extractShop2TopupBalance(data) {
   return null;
 }
 
-// ======================================================
-// CUENTA SHOP2TOPUP
-// ======================================================
-
 async function getShop2TopupAccount() {
   const data =
     await shop2topupRequest(
@@ -756,9 +739,7 @@ async function getShop2TopupAccount() {
     );
 
   const balance =
-    extractShop2TopupBalance(
-      data
-    );
+    extractShop2TopupBalance(data);
 
   return {
     data,
@@ -767,31 +748,22 @@ async function getShop2TopupAccount() {
 }
 
 // ======================================================
-// ERRORES
+// ERROR
 // ======================================================
 
-function sendError(
-  res,
-  error
-) {
+function sendError(res, error) {
   console.error(
     "SERVER ERROR:",
     error
   );
 
   res
-    .status(
-      error.status || 500
-    )
+    .status(error.status || 500)
     .json({
       ok: false,
-
-      error:
-        error.message,
-
+      error: error.message,
       details:
-        error.details ||
-        null,
+        error.details || null,
     });
 }
 
@@ -809,7 +781,6 @@ function requireAdmin(
       .status(503)
       .json({
         ok: false,
-
         error:
           "ADMIN_SECRET no está configurado en Render.",
       });
@@ -829,8 +800,7 @@ function requireAdmin(
       .status(401)
       .json({
         ok: false,
-        error:
-          "No autorizado.",
+        error: "No autorizado.",
       });
   }
 
@@ -846,16 +816,11 @@ app.get(
   (_req, res) => {
     res.json({
       ok: true,
-
       service:
         "recargas-diamantes",
-
       provider:
         "SHOP2TOPUP",
-
-      manual_payment:
-        true,
-
+      manual_payment: true,
       supabase_configured:
         Boolean(supabase),
     });
@@ -871,10 +836,8 @@ app.get(
   (_req, res) => {
     res.json({
       ok: true,
-
       service:
         "recargas-diamantes",
-
       provider:
         "SHOP2TOPUP",
 
@@ -884,21 +847,16 @@ app.get(
         ),
 
       admin_configured:
-        Boolean(
-          ADMIN_SECRET
-        ),
+        Boolean(ADMIN_SECRET),
 
       supabase_configured:
         Boolean(supabase),
 
-      manual_payment:
-        true,
+      manual_payment: true,
 
-      base_url:
-        BASE_URL,
+      base_url: BASE_URL,
 
-      pricing:
-        PRICING,
+      pricing: PRICING,
     });
   }
 );
@@ -912,13 +870,8 @@ app.get(
   (_req, res) => {
     res.json({
       ok: true,
-
-      currency:
-        "USD",
-
-      pricing:
-        PRICING,
-
+      currency: "USD",
+      pricing: PRICING,
       products:
         getProductsWithPrices(),
     });
@@ -960,8 +913,7 @@ app.get(
         balance:
           account.balance,
 
-        currency:
-          "USD",
+        currency: "USD",
 
         account:
           account.data.account
@@ -1011,17 +963,25 @@ app.post(
     try {
       const {
         game,
+        game_name,
+        slug,
         player_id,
         zone_id,
         sub_category_id,
-      } = req.body;
+      } = req.body || {};
+
+      const normalizedGame =
+        normalizeGame(
+          game ||
+            slug ||
+            game_name
+        );
 
       if (!player_id) {
         return res
           .status(400)
           .json({
             ok: false,
-
             error:
               "player_id es obligatorio.",
           });
@@ -1034,25 +994,21 @@ app.post(
 
       if (
         !subCategoryId &&
-        game
+        normalizedGame
       ) {
         const product =
           PRODUCTS[
-            String(
-              game
-            ).toLowerCase()
+            normalizedGame
           ];
 
-        if (product) {
-          const firstPackage =
-            Object.values(
-              product.packages
-            )[0];
+        const firstPackage =
+          Object.values(
+            product.packages
+          )[0];
 
-          subCategoryId =
-            firstPackage
-              .sub_category_id;
-        }
+        subCategoryId =
+          firstPackage
+            .sub_category_id;
       }
 
       if (!subCategoryId) {
@@ -1060,7 +1016,6 @@ app.post(
           .status(400)
           .json({
             ok: false,
-
             error:
               "sub_category_id es obligatorio.",
           });
@@ -1071,19 +1026,16 @@ app.post(
           subCategoryId,
 
         player_id:
-          String(
-            player_id
-          ),
+          String(player_id),
       };
 
       if (
-        zone_id !== undefined &&
+        zone_id !==
+          undefined &&
         zone_id !== ""
       ) {
         body.zone_id =
-          String(
-            zone_id
-          );
+          String(zone_id);
       }
 
       const data =
@@ -1114,64 +1066,104 @@ app.post(
   "/api/order",
   async (req, res) => {
     try {
+      const body =
+        req.body || {};
+
+      console.log(
+        "NUEVO PEDIDO RECIBIDO:",
+        JSON.stringify(
+          body,
+          null,
+          2
+        )
+      );
+
       const {
         game,
+        game_name,
+        slug,
+
         package:
           packageKey,
+
         player_id,
         zone_id,
+
         payment_method,
         player_name,
-      } = req.body;
+      } = body;
+
+      // --------------------------------------------------
+      // IDENTIFICAR JUEGO
+      // --------------------------------------------------
+
+      const gameKey =
+        normalizeGame(
+          game ||
+            slug ||
+            game_name
+        );
+
+      if (!gameKey) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            error:
+              "Juego no válido o no especificado.",
+            received_game:
+              game || null,
+            received_game_name:
+              game_name || null,
+            received_slug:
+              slug || null,
+            valid_games:
+              Object.keys(
+                PRODUCTS
+              ),
+          });
+      }
+
+      const product =
+        PRODUCTS[gameKey];
+
+      // --------------------------------------------------
+      // PLAYER ID
+      // --------------------------------------------------
 
       if (!player_id) {
         return res
           .status(400)
           .json({
             ok: false,
-
             error:
               "player_id es obligatorio.",
           });
       }
 
-      if (!game) {
+      // --------------------------------------------------
+      // PAQUETE
+      // --------------------------------------------------
+
+      if (
+        packageKey ===
+          undefined ||
+        packageKey === null ||
+        packageKey === ""
+      ) {
         return res
           .status(400)
           .json({
             ok: false,
-
             error:
-              "game es obligatorio.",
-          });
-      }
-
-      const gameKey =
-        String(
-          game
-        ).toLowerCase();
-
-      const product =
-        PRODUCTS[
-          gameKey
-        ];
-
-      if (!product) {
-        return res
-          .status(400)
-          .json({
-            ok: false,
-
-            error:
-              "Juego no válido.",
+              "package es obligatorio.",
+            game: gameKey,
           });
       }
 
       const selected =
         product.packages[
-          String(
-            packageKey
-          )
+          String(packageKey)
         ];
 
       if (!selected) {
@@ -1179,11 +1171,21 @@ app.post(
           .status(400)
           .json({
             ok: false,
-
             error:
               "Paquete no válido.",
+            game: gameKey,
+            package:
+              String(packageKey),
+            available_packages:
+              Object.keys(
+                product.packages
+              ),
           });
       }
+
+      // --------------------------------------------------
+      // ZONE ID
+      // --------------------------------------------------
 
       if (
         product.requirements.includes(
@@ -1195,11 +1197,15 @@ app.post(
           .status(400)
           .json({
             ok: false,
-
             error:
               "Zone ID es obligatorio.",
+            game: gameKey,
           });
       }
+
+      // --------------------------------------------------
+      // PRECIOS
+      // --------------------------------------------------
 
       const prices =
         calculatePrices(
@@ -1207,8 +1213,26 @@ app.post(
         );
 
       const payment =
-        payment_method ||
-        "transfermovil";
+        normalizePaymentMethod(
+          payment_method
+        );
+
+      if (!payment) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            error:
+              "Método de pago no válido.",
+            received:
+              payment_method,
+            valid_methods: [
+              "transfermovil",
+              "saldo_movil",
+              "mlc",
+            ],
+          });
+      }
 
       let saleAmount;
 
@@ -1217,36 +1241,33 @@ app.post(
         "transfermovil"
       ) {
         saleAmount =
-          prices
-            .sale_cup_transfermovil;
+          prices.sale_cup_transfermovil;
       } else if (
         payment ===
         "saldo_movil"
       ) {
         saleAmount =
-          prices
-            .sale_cup_saldo_movil;
+          prices.sale_cup_saldo_movil;
       } else if (
         payment === "mlc"
       ) {
         saleAmount =
           prices.sale_mlc;
-      } else {
-        return res
-          .status(400)
-          .json({
-            ok: false,
-
-            error:
-              "Método de pago no válido.",
-          });
       }
+
+      // --------------------------------------------------
+      // CREAR ID
+      // --------------------------------------------------
 
       const orderId =
         crypto.randomUUID();
 
       const createdAt =
         new Date().toISOString();
+
+      // --------------------------------------------------
+      // ORDEN
+      // --------------------------------------------------
 
       const order = {
         order_id:
@@ -1258,6 +1279,8 @@ app.post(
         created_at:
           createdAt,
 
+        // IMPORTANTE:
+        // game SIEMPRE tiene un valor válido.
         game:
           gameKey,
 
@@ -1265,24 +1288,17 @@ app.post(
           product.name,
 
         package:
-          String(
-            packageKey
-          ),
+          String(packageKey),
 
         sub_category_id:
-          selected
-            .sub_category_id,
+          selected.sub_category_id,
 
         player_id:
-          String(
-            player_id
-          ),
+          String(player_id),
 
         zone_id:
           zone_id
-            ? String(
-                zone_id
-              )
+            ? String(zone_id)
             : "",
 
         player_name:
@@ -1325,13 +1341,22 @@ app.post(
           "NOT_STARTED",
       };
 
+      // Seguridad final antes de Supabase.
+      if (!order.game) {
+        throw new Error(
+          "Error interno: game quedó vacío antes de guardar el pedido."
+        );
+      }
+
       await saveOrder(
         order
       );
 
       console.log(
         "PEDIDO GUARDADO EN SUPABASE:",
-        order.order_id
+        order.order_id,
+        "GAME:",
+        order.game
       );
 
       res
@@ -1348,6 +1373,9 @@ app.post(
 
             game:
               order.game_name,
+
+            game_key:
+              order.game,
 
             package:
               order.package,
@@ -1399,7 +1427,6 @@ app.get(
           .status(404)
           .json({
             ok: false,
-
             error:
               "Pedido no encontrado.",
           });
@@ -1419,7 +1446,11 @@ app.get(
             order.created_at,
 
           game:
-            order.game_name,
+            order.game_name ||
+            order.game,
+
+          game_key:
+            order.game,
 
           package:
             order.package,
@@ -1472,10 +1503,8 @@ app.get(
 
       res.json({
         ok: true,
-
         count:
           orders.length,
-
         orders,
       });
     } catch (error) {
@@ -1510,7 +1539,6 @@ app.get(
           .status(404)
           .json({
             ok: false,
-
             error:
               "Pedido no encontrado.",
           });
@@ -1530,7 +1558,7 @@ app.get(
 );
 
 // ======================================================
-// ADMIN — MARCAR PAGO RECIBIDO
+// ADMIN — PAGO RECIBIDO
 // ======================================================
 
 app.post(
@@ -1552,7 +1580,6 @@ app.post(
           .status(404)
           .json({
             ok: false,
-
             error:
               "Pedido no encontrado.",
           });
@@ -1628,7 +1655,6 @@ app.post(
           .status(404)
           .json({
             ok: false,
-
             error:
               "Pedido no encontrado.",
           });
@@ -1662,17 +1688,31 @@ app.post(
           });
       }
 
+      const gameKey =
+        normalizeGame(
+          order.game ||
+            order.slug ||
+            order.game_name
+        );
+
+      if (!gameKey) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            error:
+              "No se pudo identificar el juego del pedido.",
+          });
+      }
+
       const product =
-        PRODUCTS[
-          order.game
-        ];
+        PRODUCTS[gameKey];
 
       if (!product) {
         return res
           .status(400)
           .json({
             ok: false,
-
             error:
               "Producto no encontrado.",
           });
@@ -1680,7 +1720,9 @@ app.post(
 
       const selected =
         product.packages[
-          order.package
+          String(
+            order.package
+          )
         ];
 
       if (!selected) {
@@ -1688,7 +1730,6 @@ app.post(
           .status(400)
           .json({
             ok: false,
-
             error:
               "Paquete no encontrado.",
           });
@@ -1738,7 +1779,6 @@ app.post(
           .status(400)
           .json({
             ok: false,
-
             error:
               "Costo del producto inválido.",
           });
@@ -1770,6 +1810,9 @@ app.post(
       // --------------------------------------------------
       // MARCAR PROCESANDO
       // --------------------------------------------------
+
+      order.game =
+        gameKey;
 
       order.authorized =
         true;
@@ -1807,9 +1850,7 @@ app.post(
           ),
       };
 
-      if (
-        order.zone_id
-      ) {
+      if (order.zone_id) {
         requirements.zone_id =
           String(
             order.zone_id
@@ -1822,8 +1863,7 @@ app.post(
 
         sub_category_id:
           Number(
-            selected
-              .sub_category_id
+            selected.sub_category_id
           ),
 
         quantity: 1,
@@ -1838,7 +1878,11 @@ app.post(
 
       console.log(
         "AUTORIZANDO RECARGA:",
-        providerBody
+        JSON.stringify(
+          providerBody,
+          null,
+          2
+        )
       );
 
       const providerResponse =
@@ -1951,7 +1995,6 @@ app.post(
           .status(404)
           .json({
             ok: false,
-
             error:
               "Pedido no encontrado.",
           });
@@ -2109,36 +2152,8 @@ app.use(
       .status(404)
       .json({
         ok: false,
-
         error:
           "Ruta no encontrada.",
-      });
-  }
-);
-
-// ======================================================
-// ERROR GLOBAL
-// ======================================================
-
-app.use(
-  (
-    error,
-    _req,
-    res,
-    _next
-  ) => {
-    console.error(
-      "UNHANDLED SERVER ERROR:",
-      error
-    );
-
-    res
-      .status(500)
-      .json({
-        ok: false,
-
-        error:
-          "Error interno del servidor.",
       });
   }
 );
