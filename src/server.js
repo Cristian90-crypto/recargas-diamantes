@@ -25,32 +25,14 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ======================================================
-// SHOP2TOPUP
-// ======================================================
-
 const SHOP2TOPUP_API_KEY =
   process.env.SHOP2TOPUP_API_KEY;
-
-const BASE_URL =
-  "https://shop2topup.com/api/endpoints/v1";
-
-// ======================================================
-// ADMIN
-// ======================================================
 
 const ADMIN_SECRET =
   process.env.ADMIN_SECRET;
 
-// ======================================================
-// SUPABASE
-// ======================================================
-
-const SUPABASE_URL =
-  process.env.SUPABASE_URL;
-
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY;
+const BASE_URL =
+  "https://shop2topup.com/api/endpoints/v1";
 
 // ======================================================
 // PRECIOS
@@ -292,6 +274,12 @@ const PRODUCTS = {
 };
 
 // ======================================================
+// PEDIDOS
+// ======================================================
+
+const ORDERS = new Map();
+
+// ======================================================
 // UTILIDADES
 // ======================================================
 
@@ -409,253 +397,7 @@ function getProductsWithPrices() {
 }
 
 // ======================================================
-// SUPABASE CONFIG
-// ======================================================
-
-function checkSupabase() {
-  if (!SUPABASE_URL) {
-    const error = new Error(
-      "SUPABASE_URL no está configurada en Render."
-    );
-
-    error.status = 503;
-
-    throw error;
-  }
-
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    const error = new Error(
-      "SUPABASE_SERVICE_ROLE_KEY no está configurada en Render."
-    );
-
-    error.status = 503;
-
-    throw error;
-  }
-}
-
-// ======================================================
-// SUPABASE REQUEST
-// ======================================================
-
-async function supabaseRequest(
-  path,
-  method = "GET",
-  body = undefined
-) {
-  checkSupabase();
-
-  const options = {
-    method,
-
-    headers: {
-      apikey:
-        SUPABASE_SERVICE_ROLE_KEY,
-
-      Authorization:
-        `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-
-      Accept:
-        "application/json",
-
-      "Content-Type":
-        "application/json",
-
-      Prefer:
-        "return=representation",
-    },
-  };
-
-  if (
-    body !== undefined
-  ) {
-    options.body =
-      JSON.stringify(body);
-  }
-
-  const response =
-    await fetch(
-      `${SUPABASE_URL}/rest/v1${path}`,
-      options
-    );
-
-  const text =
-    await response.text();
-
-  let data;
-
-  try {
-    data =
-      text
-        ? JSON.parse(text)
-        : {};
-  } catch {
-    data = {
-      raw: text,
-    };
-  }
-
-  if (!response.ok) {
-    const error = new Error(
-      data?.message ||
-        data?.error_description ||
-        data?.hint ||
-        `Supabase respondió HTTP ${response.status}`
-    );
-
-    error.status =
-      response.status;
-
-    error.details =
-      data;
-
-    throw error;
-  }
-
-  return data;
-}
-
-// ======================================================
-// CONVERTIR PEDIDO A FILA SUPABASE
-// ======================================================
-
-function orderToDatabase(order) {
-  return {
-    order_id:
-      order.order_id,
-
-    status:
-      order.status,
-
-    created_at:
-      order.created_at,
-
-    game:
-      order.game,
-
-    game_name:
-      order.game_name,
-
-    package:
-      order.package,
-
-    sub_category_id:
-      order.sub_category_id,
-
-    player_id:
-      order.player_id,
-
-    zone_id:
-      order.zone_id || "",
-
-    player_name:
-      order.player_name || "",
-
-    payment_method:
-      order.payment_method,
-
-    sale_amount:
-      order.sale_amount,
-
-    provider_cost_usd:
-      order.provider_cost_usd,
-
-    provider_order_id:
-      order.provider_order_id,
-
-    payment_received:
-      Boolean(
-        order.payment_received
-      ),
-
-    authorized:
-      Boolean(
-        order.authorized
-      ),
-
-    rejected:
-      Boolean(
-        order.rejected
-      ),
-
-    recharge_status:
-      order.recharge_status,
-  };
-}
-
-// ======================================================
-// GUARDAR PEDIDO
-// ======================================================
-
-async function createOrder(order) {
-  const rows =
-    await supabaseRequest(
-      "/orders",
-      "POST",
-      orderToDatabase(order)
-    );
-
-  return Array.isArray(rows)
-    ? rows[0]
-    : rows;
-}
-
-// ======================================================
-// BUSCAR PEDIDO
-// ======================================================
-
-async function getOrder(orderId) {
-  const rows =
-    await supabaseRequest(
-      `/orders?order_id=eq.${encodeURIComponent(
-        orderId
-      )}&select=*`
-    );
-
-  if (
-    !Array.isArray(rows) ||
-    rows.length === 0
-  ) {
-    return null;
-  }
-
-  return rows[0];
-}
-
-// ======================================================
-// ACTUALIZAR PEDIDO
-// ======================================================
-
-async function updateOrder(
-  orderId,
-  changes
-) {
-  const rows =
-    await supabaseRequest(
-      `/orders?order_id=eq.${encodeURIComponent(
-        orderId
-      )}`,
-      "PATCH",
-      changes
-    );
-
-  return Array.isArray(rows)
-    ? rows[0]
-    : rows;
-}
-
-// ======================================================
-// LISTAR PEDIDOS
-// ======================================================
-
-async function getAllOrders() {
-  return await supabaseRequest(
-    "/orders?select=*&order=created_at.desc"
-  );
-}
-
-// ======================================================
-// SHOP2TOPUP CREDENCIALES
+// CREDENCIALES
 // ======================================================
 
 function checkCredentials() {
@@ -761,7 +503,7 @@ async function shop2topupRequest(
 }
 
 // ======================================================
-// EXTRAER SALDO
+// EXTRAER SALDO REAL
 // ======================================================
 
 function extractShop2TopupBalance(data) {
@@ -799,7 +541,7 @@ function extractShop2TopupBalance(data) {
 }
 
 // ======================================================
-// SHOP2TOPUP CUENTA
+// OBTENER CUENTA / SALDO
 // ======================================================
 
 async function getShop2TopupAccount() {
@@ -899,9 +641,6 @@ app.get(
       provider:
         "SHOP2TOPUP",
 
-      database:
-        "Supabase",
-
       manual_payment:
         true,
     });
@@ -932,12 +671,6 @@ app.get(
       admin_configured:
         Boolean(
           ADMIN_SECRET
-        ),
-
-      supabase_configured:
-        Boolean(
-          SUPABASE_URL &&
-          SUPABASE_SERVICE_ROLE_KEY
         ),
 
       manual_payment:
@@ -1284,6 +1017,9 @@ app.post(
         sale_amount:
           saleAmount,
 
+        sale_prices:
+          prices,
+
         provider_cost_usd:
           Number(
             selected.cost_usd
@@ -1305,18 +1041,14 @@ app.post(
           "NOT_STARTED",
       };
 
-      // ==================================================
-      // GUARDAR EN SUPABASE
-      // ==================================================
-
-      const saved =
-        await createOrder(
-          order
-        );
+      ORDERS.set(
+        orderId,
+        order
+      );
 
       console.log(
-        "PEDIDO GUARDADO EN SUPABASE:",
-        saved
+        "PEDIDO PENDIENTE:",
+        order
       );
 
       res.status(201).json({
@@ -1349,7 +1081,7 @@ app.post(
         },
 
         message:
-          "Pedido creado y guardado. Esperando confirmación de pago.",
+          "Pedido creado. Esperando confirmación de pago.",
       });
     } catch (error) {
       sendError(
@@ -1366,32 +1098,61 @@ app.post(
 
 app.get(
   "/api/order/:orderId",
-  async (req, res) => {
-    try {
-      const order =
-        await getOrder(
-          req.params.orderId
-        );
-
-      if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
-      }
-
-      res.json({
-        ok: true,
-
-        order,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
+  (req, res) => {
+    const order =
+      ORDERS.get(
+        req.params.orderId
       );
+
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
     }
+
+    res.json({
+      ok: true,
+
+      order: {
+        order_id:
+          order.order_id,
+
+        status:
+          order.status,
+
+        created_at:
+          order.created_at,
+
+        game:
+          order.game_name,
+
+        package:
+          order.package,
+
+        player_id:
+          order.player_id,
+
+        zone_id:
+          order.zone_id,
+
+        payment_method:
+          order.payment_method,
+
+        sale_amount:
+          order.sale_amount,
+
+        payment_received:
+          order.payment_received,
+
+        recharge_status:
+          order.recharge_status,
+
+        provider_order_id:
+          order.provider_order_id,
+      },
+    });
   }
 );
 
@@ -1402,25 +1163,28 @@ app.get(
 app.get(
   "/api/admin/orders",
   requireAdmin,
-  async (_req, res) => {
-    try {
-      const orders =
-        await getAllOrders();
-
-      res.json({
-        ok: true,
-
-        count:
-          orders.length,
-
-        orders,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
+  (_req, res) => {
+    const orders =
+      Array.from(
+        ORDERS.values()
+      ).sort(
+        (a, b) =>
+          new Date(
+            b.created_at
+          ) -
+          new Date(
+            a.created_at
+          )
       );
-    }
+
+    res.json({
+      ok: true,
+
+      count:
+        orders.length,
+
+      orders,
+    });
   }
 );
 
@@ -1431,31 +1195,24 @@ app.get(
 app.get(
   "/api/admin/orders/:orderId",
   requireAdmin,
-  async (req, res) => {
-    try {
-      const order =
-        await getOrder(
-          req.params.orderId
-        );
-
-      if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
-      }
-
-      res.json({
-        ok: true,
-        order,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
+  (req, res) => {
+    const order =
+      ORDERS.get(
+        req.params.orderId
       );
+
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
     }
+
+    res.json({
+      ok: true,
+      order,
+    });
   }
 );
 
@@ -1466,70 +1223,54 @@ app.get(
 app.post(
   "/api/admin/orders/:orderId/payment-received",
   requireAdmin,
-  async (req, res) => {
-    try {
-      const order =
-        await getOrder(
-          req.params.orderId
-        );
-
-      if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
-      }
-
-      if (
-        order.status !==
-        "PENDING_PAYMENT"
-      ) {
-        return res.status(400).json({
-          ok: false,
-
-          error:
-            `El pedido no está esperando pago. Estado actual: ${order.status}`,
-        });
-      }
-
-      const updated =
-        await updateOrder(
-          order.order_id,
-          {
-            payment_received:
-              true,
-
-            status:
-              "PAYMENT_RECEIVED",
-          }
-        );
-
-      console.log(
-        "PAGO CONFIRMADO:",
-        order.order_id
+  (req, res) => {
+    const order =
+      ORDERS.get(
+        req.params.orderId
       );
 
-      res.json({
-        ok: true,
-
-        order:
-          updated || {
-            ...order,
-
-            payment_received:
-              true,
-
-            status:
-              "PAYMENT_RECEIVED",
-          },
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
       });
-    } catch (error) {
-      sendError(
-        res,
-        error
-      );
     }
+
+    if (
+      order.status !==
+      "PENDING_PAYMENT"
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          `El pedido no está esperando pago. Estado actual: ${order.status}`,
+      });
+    }
+
+    order.payment_received =
+      true;
+
+    order.status =
+      "PAYMENT_RECEIVED";
+
+    order.payment_received_at =
+      new Date().toISOString();
+
+    ORDERS.set(
+      order.order_id,
+      order
+    );
+
+    console.log(
+      "PAGO CONFIRMADO:",
+      order.order_id
+    );
+
+    res.json({
+      ok: true,
+      order,
+    });
   }
 );
 
@@ -1541,11 +1282,11 @@ app.post(
   "/api/admin/orders/:orderId/authorize",
   requireAdmin,
   async (req, res) => {
-    let order = null;
+    let order;
 
     try {
       order =
-        await getOrder(
+        ORDERS.get(
           req.params.orderId
         );
 
@@ -1578,19 +1319,6 @@ app.post(
 
           error:
             "La recarga ya fue realizada.",
-        });
-      }
-
-      if (
-        order.authorized === true &&
-        order.recharge_status ===
-          "PROCESSING"
-      ) {
-        return res.status(400).json({
-          ok: false,
-
-          error:
-            "Esta recarga ya está siendo procesada.",
         });
       }
 
@@ -1659,7 +1387,6 @@ app.post(
       ) {
         return res.status(400).json({
           ok: false,
-
           error:
             "Costo del producto inválido.",
         });
@@ -1687,24 +1414,30 @@ app.post(
       }
 
       // ==================================================
-      // GUARDAR ESTADO DE PROCESAMIENTO
+      // AUTORIZAR
       // ==================================================
 
-      await updateOrder(
+      order.authorized =
+        true;
+
+      order.status =
+        "RECHARGE_PROCESSING";
+
+      order.recharge_status =
+        "PROCESSING";
+
+      order.authorized_at =
+        new Date().toISOString();
+
+      order.balance_before =
+        currentBalance;
+
+      order.provider_cost_usd =
+        providerCost;
+
+      ORDERS.set(
         order.order_id,
-        {
-          authorized:
-            true,
-
-          status:
-            "RECHARGE_PROCESSING",
-
-          recharge_status:
-            "PROCESSING",
-
-          provider_cost_usd:
-            providerCost,
-        }
+        order
       );
 
       // ==================================================
@@ -1761,28 +1494,29 @@ app.post(
           providerBody
         );
 
-      // ==================================================
-      // RECARGA ENVIADA
-      // ==================================================
+      order.provider_order_id =
+        providerOrderId;
 
-      const updated =
-        await updateOrder(
-          order.order_id,
-          {
-            provider_order_id:
-              providerOrderId,
+      order.provider_response =
+        providerResponse;
 
-            recharge_status:
-              "SUBMITTED",
+      order.recharge_status =
+        "SUBMITTED";
 
-            status:
-              "RECHARGE_SUBMITTED",
-          }
-        );
+      order.status =
+        "RECHARGE_SUBMITTED";
+
+      order.submitted_at =
+        new Date().toISOString();
+
+      ORDERS.set(
+        order.order_id,
+        order
+      );
 
       console.log(
         "RECARGA ENVIADA A SHOP2TOPUP:",
-        order.order_id
+        order
       );
 
       res.json({
@@ -1797,22 +1531,7 @@ app.post(
         provider_cost:
           providerCost,
 
-        provider_response:
-          providerResponse,
-
-        order:
-          updated || {
-            ...order,
-
-            provider_order_id:
-              providerOrderId,
-
-            recharge_status:
-              "SUBMITTED",
-
-            status:
-              "RECHARGE_SUBMITTED",
-          },
+        order,
       });
     } catch (error) {
       console.error(
@@ -1820,31 +1539,23 @@ app.post(
         error
       );
 
-      // Si ya habíamos puesto el pedido
-      // en PROCESSING, lo marcamos como FAILED.
       if (order) {
-        try {
-          await updateOrder(
-            order.order_id,
-            {
-              authorized:
-                order.authorized,
+        order.recharge_status =
+          "FAILED";
 
-              status:
-                "RECHARGE_FAILED",
+        order.status =
+          "RECHARGE_FAILED";
 
-              recharge_status:
-                "FAILED",
-            }
-          );
-        } catch (
-          updateError
-        ) {
-          console.error(
-            "No se pudo actualizar el pedido después del error:",
-            updateError
-          );
-        }
+        order.recharge_error =
+          error.message;
+
+        order.recharge_error_details =
+          error.details || null;
+
+        ORDERS.set(
+          order.order_id,
+          order
+        );
       }
 
       sendError(
@@ -1862,67 +1573,57 @@ app.post(
 app.post(
   "/api/admin/orders/:orderId/reject",
   requireAdmin,
-  async (req, res) => {
-    try {
-      const order =
-        await getOrder(
-          req.params.orderId
-        );
-
-      if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
-      }
-
-      if (
-        order.status !==
-          "PENDING_PAYMENT" &&
-        order.status !==
-          "PAYMENT_RECEIVED"
-      ) {
-        return res.status(400).json({
-          ok: false,
-
-          error:
-            "Este pedido ya no puede ser rechazado.",
-        });
-      }
-
-      const updated =
-        await updateOrder(
-          order.order_id,
-          {
-            rejected:
-              true,
-
-            status:
-              "REJECTED",
-          }
-        );
-
-      res.json({
-        ok: true,
-
-        order:
-          updated || {
-            ...order,
-
-            rejected:
-              true,
-
-            status:
-              "REJECTED",
-          },
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
+  (req, res) => {
+    const order =
+      ORDERS.get(
+        req.params.orderId
       );
+
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Pedido no encontrado.",
+      });
     }
+
+    if (
+      order.status !==
+        "PENDING_PAYMENT" &&
+      order.status !==
+        "PAYMENT_RECEIVED"
+    ) {
+      return res.status(400).json({
+        ok: false,
+
+        error:
+          "Este pedido ya no puede ser rechazado.",
+      });
+    }
+
+    order.rejected =
+      true;
+
+    order.status =
+      "REJECTED";
+
+    order.rejected_at =
+      new Date().toISOString();
+
+    order.rejection_reason =
+      req.body?.reason ||
+      "Pago no confirmado.";
+
+    ORDERS.set(
+      order.order_id,
+      order
+    );
+
+    res.json({
+      ok: true,
+
+      order,
+    });
   }
 );
 
@@ -2054,26 +1755,6 @@ app.listen(
           ? "CONFIGURADO"
           : "NO CONFIGURADO"
       }`
-    );
-
-    console.log(
-      `SUPABASE_URL: ${
-        SUPABASE_URL
-          ? "CONFIGURADA"
-          : "NO CONFIGURADA"
-      }`
-    );
-
-    console.log(
-      `SUPABASE_SERVICE_ROLE_KEY: ${
-        SUPABASE_SERVICE_ROLE_KEY
-          ? "CONFIGURADA"
-          : "NO CONFIGURADA"
-      }`
-    );
-
-    console.log(
-      "Base de datos persistente: SUPABASE"
     );
 
     console.log(
