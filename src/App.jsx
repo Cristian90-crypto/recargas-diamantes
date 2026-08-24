@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Admin from "./admin";
+import Admin from "./Admin";
 const API_BASE = "https://recargas-diamantes.onrender.com";
 const WHATSAPP_NUMBER = "5350504941";
 
