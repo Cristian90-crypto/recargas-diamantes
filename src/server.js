@@ -26,10 +26,15 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const SHOP2TOPUP_API_KEY = process.env.SHOP2TOPUP_API_KEY;
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const SHOP2TOPUP_API_KEY =
+  process.env.SHOP2TOPUP_API_KEY;
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const ADMIN_SECRET =
+  process.env.ADMIN_SECRET;
+
+const SUPABASE_URL =
+  process.env.SUPABASE_URL;
+
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -54,12 +59,6 @@ const supabase =
       )
     : null;
 
-if (!supabase) {
-  console.warn(
-    "ADVERTENCIA: Supabase no está configurado correctamente."
-  );
-}
-
 // ======================================================
 // PRECIOS
 // ======================================================
@@ -68,6 +67,7 @@ const PRICING = {
   transfermovil_cup_per_usd: 1000,
   saldo_movil_cup_per_usd: 500,
   mlc_per_usd: 2,
+
   reference_cost_usd: 0.731179,
   reference_sale_usd: 1,
 };
@@ -88,26 +88,31 @@ const PRODUCTS = {
         sub_category_id: 732,
         cost_usd: "0.731179",
       },
+
       310: {
         diamonds: 310,
         sub_category_id: 733,
         cost_usd: "2.193538",
       },
+
       520: {
         diamonds: 520,
         sub_category_id: 734,
         cost_usd: "3.704107",
       },
+
       1060: {
         diamonds: 1060,
         sub_category_id: 735,
         cost_usd: "6.877907",
       },
+
       2180: {
         diamonds: 2180,
         sub_category_id: 736,
         cost_usd: "13.659394",
       },
+
       5600: {
         diamonds: 5600,
         sub_category_id: 737,
@@ -127,71 +132,85 @@ const PRODUCTS = {
         sub_category_id: 630,
         cost_usd: "0.088384",
       },
+
       12: {
         diamonds: 12,
         sub_category_id: 631,
         cost_usd: "0.224978",
       },
+
       19: {
         diamonds: 19,
         sub_category_id: 632,
         cost_usd: "0.353537",
       },
+
       28: {
         diamonds: 28,
         sub_category_id: 633,
         cost_usd: "0.506202",
       },
+
       44: {
         diamonds: 44,
         sub_category_id: 634,
         cost_usd: "0.771354",
       },
+
       59: {
         diamonds: 59,
         sub_category_id: 635,
         cost_usd: "1.020438",
       },
+
       85: {
         diamonds: 85,
         sub_category_id: 636,
         cost_usd: "1.470393",
       },
+
       170: {
         diamonds: 170,
         sub_category_id: 637,
         cost_usd: "2.932752",
       },
+
       240: {
         diamonds: 240,
         sub_category_id: 638,
         cost_usd: "4.146028",
       },
+
       296: {
         diamonds: 296,
         sub_category_id: 639,
         cost_usd: "5.110220",
       },
+
       408: {
         diamonds: 408,
         sub_category_id: 640,
         cost_usd: "7.030570",
       },
+
       568: {
         diamonds: 568,
         sub_category_id: 641,
         cost_usd: "9.585681",
       },
+
       875: {
         diamonds: 875,
         sub_category_id: 642,
         cost_usd: "14.695901",
       },
+
       2010: {
         diamonds: 2010,
         sub_category_id: 643,
         cost_usd: "31.954948",
       },
+
       4830: {
         diamonds: 4830,
         sub_category_id: 644,
@@ -211,51 +230,61 @@ const PRODUCTS = {
         sub_category_id: 12,
         cost_usd: "0.312803",
       },
+
       60: {
         uc: 60,
         sub_category_id: 13,
         cost_usd: "0.885768",
       },
+
       325: {
         uc: 325,
         sub_category_id: 14,
         cost_usd: "4.442100",
       },
+
       660: {
         uc: 660,
         sub_category_id: 15,
         cost_usd: "8.884200",
       },
+
       1800: {
         uc: 1800,
         sub_category_id: 16,
         cost_usd: "22.210500",
       },
+
       3850: {
         uc: 3850,
         sub_category_id: 17,
         cost_usd: "44.421000",
       },
+
       8100: {
         uc: 8100,
         sub_category_id: 18,
         cost_usd: "88.842000",
       },
+
       16200: {
         uc: 16200,
         sub_category_id: 19,
         cost_usd: "178.744800",
       },
+
       24300: {
         uc: 24300,
         sub_category_id: 20,
         cost_usd: "268.117200",
       },
+
       32400: {
         uc: 32400,
         sub_category_id: 21,
         cost_usd: "357.489600",
       },
+
       40500: {
         uc: 40500,
         sub_category_id: 22,
@@ -266,7 +295,7 @@ const PRODUCTS = {
 };
 
 // ======================================================
-// NORMALIZAR JUEGO
+// NORMALIZADORES
 // ======================================================
 
 function normalizeGame(value) {
@@ -292,12 +321,10 @@ function normalizeGame(value) {
   return aliases[normalized] || null;
 }
 
-// ======================================================
-// NORMALIZAR MÉTODO DE PAGO
-// ======================================================
-
 function normalizePaymentMethod(value) {
-  if (!value) return "transfermovil";
+  if (!value) {
+    return "transfermovil";
+  }
 
   const normalized = String(value)
     .trim()
@@ -338,33 +365,52 @@ function calculatePrices(costUsd) {
     PRICING.reference_sale_usd /
     PRICING.reference_cost_usd;
 
-  const saleUsd = cost * pricingFactor;
+  const saleUsd =
+    cost * pricingFactor;
 
-  const saleTransferMovil = Math.round(
-    saleUsd * PRICING.transfermovil_cup_per_usd
-  );
+  const saleTransferMovil =
+    Math.round(
+      saleUsd *
+        PRICING.transfermovil_cup_per_usd
+    );
 
-  const saleSaldoMovil = Math.round(
-    saleUsd * PRICING.saldo_movil_cup_per_usd
-  );
+  const saleSaldoMovil =
+    Math.round(
+      saleUsd *
+        PRICING.saldo_movil_cup_per_usd
+    );
 
-  const saleMlc = roundMoney(
-    saleUsd * PRICING.mlc_per_usd,
-    2
-  );
+  const saleMlc =
+    roundMoney(
+      saleUsd *
+        PRICING.mlc_per_usd,
+      2
+    );
 
-  const profitUsd = saleUsd - cost;
+  const profitUsd =
+    saleUsd - cost;
+
+  const profitPercent =
+    (profitUsd / cost) * 100;
 
   return {
-    sale_usd: roundMoney(saleUsd, 2),
-    sale_cup_transfermovil: saleTransferMovil,
-    sale_cup_saldo_movil: saleSaldoMovil,
-    sale_mlc: saleMlc,
-    profit_usd: roundMoney(profitUsd, 2),
-    profit_percent: roundMoney(
-      (profitUsd / cost) * 100,
-      2
-    ),
+    sale_usd:
+      roundMoney(saleUsd, 2),
+
+    sale_cup_transfermovil:
+      saleTransferMovil,
+
+    sale_cup_saldo_movil:
+      saleSaldoMovil,
+
+    sale_mlc:
+      saleMlc,
+
+    profit_usd:
+      roundMoney(profitUsd, 2),
+
+    profit_percent:
+      roundMoney(profitPercent, 2),
   };
 }
 
@@ -382,11 +428,15 @@ function getProductsWithPrices() {
     for (const [packageKey, product] of Object.entries(
       game.packages
     )) {
-      const prices = calculatePrices(product.cost_usd);
+      const prices =
+        calculatePrices(product.cost_usd);
 
       result[gameKey].packages[packageKey] = {
         ...product,
-        cost_usd: Number(product.cost_usd).toFixed(6),
+
+        cost_usd:
+          Number(product.cost_usd).toFixed(6),
+
         ...prices,
       };
     }
@@ -406,6 +456,7 @@ function checkSupabase() {
     );
 
     error.status = 503;
+
     throw error;
   }
 }
@@ -413,129 +464,200 @@ function checkSupabase() {
 /*
   IMPORTANTE:
 
-  Tu tabla orders tiene columnas NOT NULL como:
+  Estas son EXACTAMENTE las columnas que nos dijiste
+  que existen en orders.
 
-  - game
-  - game_name
-  - package
+  NO enviamos created_at porque esa columna NO aparece
+  en tu lista.
 
-  Por eso las guardamos DIRECTAMENTE en Supabase.
-
-  Además guardamos TODO el pedido dentro de order_data.
+  La fecha de creación se conserva dentro de order_data.
 */
 
 async function saveOrder(order) {
   checkSupabase();
 
-  // ----------------------------------------------------
-  // NORMALIZAR LOS DATOS ANTES DE GUARDAR
-  // ----------------------------------------------------
-
-  const game =
-    normalizeGame(
-      order.game ||
-        order.slug ||
-        order.game_key ||
-        order.game_name
+  if (!order.order_id) {
+    throw new Error(
+      "order_id es obligatorio."
     );
-
-  const gameName =
-    order.game_name ||
-    PRODUCTS[game]?.name ||
-    game;
-
-  const packageValue =
-    order.package !== undefined &&
-    order.package !== null &&
-    String(order.package).trim() !== ""
-      ? String(order.package)
-      : order.package_id !== undefined &&
-        order.package_id !== null
-      ? String(order.package_id)
-      : order.package_key !== undefined &&
-        order.package_key !== null
-      ? String(order.package_key)
-      : null;
-
-  // ----------------------------------------------------
-  // VALIDACIONES
-  // ----------------------------------------------------
-
-  if (!game) {
-    const error = new Error(
-      "No se puede guardar el pedido porque game está vacío."
-    );
-
-    error.status = 400;
-    throw error;
   }
 
-  if (!gameName) {
-    const error = new Error(
-      "No se puede guardar el pedido porque game_name está vacío."
+  if (!order.status) {
+    throw new Error(
+      "status es obligatorio."
     );
-
-    error.status = 400;
-    throw error;
   }
 
-  if (!packageValue) {
-    const error = new Error(
-      "No se puede guardar el pedido porque package está vacío."
+  if (!order.game) {
+    throw new Error(
+      "game es obligatorio."
     );
-
-    error.status = 400;
-    throw error;
   }
 
-  // ----------------------------------------------------
-  // ACTUALIZAR EL OBJETO COMPLETO
-  // ----------------------------------------------------
+  if (!order.game_name) {
+    throw new Error(
+      "game_name es obligatorio."
+    );
+  }
 
-  order.game = game;
-  order.game_name = gameName;
-  order.package = packageValue;
+  if (
+    order.package === undefined ||
+    order.package === null ||
+    order.package === ""
+  ) {
+    throw new Error(
+      "package es obligatorio."
+    );
+  }
 
-  // ----------------------------------------------------
-  // FILA DIRECTA DE SUPABASE
-  // ----------------------------------------------------
+  if (
+    order.sub_category_id === undefined ||
+    order.sub_category_id === null
+  ) {
+    throw new Error(
+      "sub_category_id es obligatorio."
+    );
+  }
+
+  if (!order.player_id) {
+    throw new Error(
+      "player_id es obligatorio."
+    );
+  }
+
+  if (!order.payment_method) {
+    throw new Error(
+      "payment_method es obligatorio."
+    );
+  }
+
+  if (
+    order.sale_amount === undefined ||
+    order.sale_amount === null
+  ) {
+    throw new Error(
+      "sale_amount es obligatorio."
+    );
+  }
+
+  if (!order.sale_prices) {
+    throw new Error(
+      "sale_prices es obligatorio."
+    );
+  }
+
+  if (
+    order.provider_cost_usd === undefined ||
+    order.provider_cost_usd === null
+  ) {
+    throw new Error(
+      "provider_cost_usd es obligatorio."
+    );
+  }
+
+  /*
+    Esta es la parte importante.
+
+    Se mandan directamente a Supabase
+    las columnas reales de la tabla.
+  */
 
   const row = {
-    order_id: order.order_id,
-    status: order.status,
-    created_at: order.created_at,
+    order_id:
+      String(order.order_id),
 
-    // COLUMNAS NOT NULL
-    game: game,
-    game_name: gameName,
-    package: packageValue,
+    status:
+      String(order.status),
 
-    // Datos completos
-    order_data: order,
+    game:
+      String(order.game),
+
+    game_name:
+      String(order.game_name),
+
+    package:
+      String(order.package),
+
+    sub_category_id:
+      Number(order.sub_category_id),
+
+    player_id:
+      String(order.player_id),
+
+    zone_id:
+      order.zone_id
+        ? String(order.zone_id)
+        : "",
+
+    player_name:
+      order.player_name
+        ? String(order.player_name)
+        : "",
+
+    payment_method:
+      String(order.payment_method),
+
+    sale_amount:
+      Number(order.sale_amount),
+
+    sale_prices:
+      order.sale_prices,
+
+    provider_cost_usd:
+      Number(order.provider_cost_usd),
+
+    provider_order_id:
+      order.provider_order_id
+        ? String(order.provider_order_id)
+        : "",
+
+    payment_received:
+      Boolean(order.payment_received),
+
+    authorized_at:
+      order.authorized_at || null,
+
+    submitted_at:
+      order.submitted_at || null,
+
+    rejected_at:
+      order.rejected_at || null,
+
+    rejection_reason:
+      order.rejection_reason || "",
+
+    provider_response:
+      order.provider_response || {},
+
+    recharge_error:
+      order.recharge_error || "",
+
+    recharge_error_details:
+      order.recharge_error_details || {},
+
+    balance_before:
+      order.balance_before === undefined ||
+      order.balance_before === null
+        ? 0
+        : Number(order.balance_before),
+
+    order_data:
+      order,
   };
 
   console.log(
-    "GUARDANDO EN SUPABASE:",
-    JSON.stringify(
-      {
-        order_id: row.order_id,
-        game: row.game,
-        game_name: row.game_name,
-        package: row.package,
-        status: row.status,
-      },
-      null,
-      2
-    )
+    "SUPABASE ROW:",
+    JSON.stringify(row, null, 2)
   );
 
-  const { data, error } = await supabase
-    .from("orders")
-    .upsert(row, {
-      onConflict: "order_id",
-    })
-    .select()
-    .single();
+  const { data, error } =
+    await supabase
+      .from("orders")
+      .upsert(row, {
+        onConflict: "order_id",
+      })
+      .select()
+      .single();
 
   if (error) {
     console.error(
@@ -543,9 +665,10 @@ async function saveOrder(order) {
       error
     );
 
-    const supabaseError = new Error(
-      `No se pudo guardar el pedido en Supabase: ${error.message}`
-    );
+    const supabaseError =
+      new Error(
+        `No se pudo guardar el pedido en Supabase: ${error.message}`
+      );
 
     supabaseError.status = 500;
     supabaseError.details = error;
@@ -559,11 +682,42 @@ async function saveOrder(order) {
 async function getOrder(orderId) {
   checkSupabase();
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("order_id", orderId)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from("orders")
+      .select(
+        `
+        order_id,
+        status,
+        game,
+        game_name,
+        package,
+        sub_category_id,
+        player_id,
+        zone_id,
+        player_name,
+        payment_method,
+        sale_amount,
+        sale_prices,
+        provider_cost_usd,
+        provider_order_id,
+        payment_received,
+        authorized_at,
+        submitted_at,
+        rejected_at,
+        rejection_reason,
+        provider_response,
+        recharge_error,
+        recharge_error_details,
+        balance_before,
+        order_data
+        `
+      )
+      .eq(
+        "order_id",
+        orderId
+      )
+      .maybeSingle();
 
   if (error) {
     console.error(
@@ -571,9 +725,10 @@ async function getOrder(orderId) {
       error
     );
 
-    const supabaseError = new Error(
-      `No se pudo consultar el pedido: ${error.message}`
-    );
+    const supabaseError =
+      new Error(
+        `No se pudo consultar el pedido: ${error.message}`
+      );
 
     supabaseError.status = 500;
     supabaseError.details = error;
@@ -581,7 +736,9 @@ async function getOrder(orderId) {
     throw supabaseError;
   }
 
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
   const orderData =
     data.order_data &&
@@ -593,40 +750,116 @@ async function getOrder(orderId) {
     ...orderData,
 
     order_id:
-      data.order_id ||
-      orderData.order_id,
+      data.order_id,
 
     status:
-      data.status ||
-      orderData.status,
-
-    created_at:
-      data.created_at ||
-      orderData.created_at,
+      data.status,
 
     game:
-      data.game ||
-      orderData.game,
+      data.game,
 
     game_name:
-      data.game_name ||
-      orderData.game_name,
+      data.game_name,
 
     package:
-      data.package ||
-      orderData.package,
+      data.package,
+
+    sub_category_id:
+      data.sub_category_id,
+
+    player_id:
+      data.player_id,
+
+    zone_id:
+      data.zone_id,
+
+    player_name:
+      data.player_name,
+
+    payment_method:
+      data.payment_method,
+
+    sale_amount:
+      data.sale_amount,
+
+    sale_prices:
+      data.sale_prices,
+
+    provider_cost_usd:
+      data.provider_cost_usd,
+
+    provider_order_id:
+      data.provider_order_id,
+
+    payment_received:
+      data.payment_received,
+
+    authorized_at:
+      data.authorized_at,
+
+    submitted_at:
+      data.submitted_at,
+
+    rejected_at:
+      data.rejected_at,
+
+    rejection_reason:
+      data.rejection_reason,
+
+    provider_response:
+      data.provider_response,
+
+    recharge_error:
+      data.recharge_error,
+
+    recharge_error_details:
+      data.recharge_error_details,
+
+    balance_before:
+      data.balance_before,
   };
 }
 
 async function getOrders() {
   checkSupabase();
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", {
-      ascending: false,
-    });
+  const { data, error } =
+    await supabase
+      .from("orders")
+      .select(
+        `
+        order_id,
+        status,
+        game,
+        game_name,
+        package,
+        sub_category_id,
+        player_id,
+        zone_id,
+        player_name,
+        payment_method,
+        sale_amount,
+        sale_prices,
+        provider_cost_usd,
+        provider_order_id,
+        payment_received,
+        authorized_at,
+        submitted_at,
+        rejected_at,
+        rejection_reason,
+        provider_response,
+        recharge_error,
+        recharge_error_details,
+        balance_before,
+        order_data
+        `
+      )
+      .order(
+        "order_id",
+        {
+          ascending: false,
+        }
+      );
 
   if (error) {
     console.error(
@@ -634,9 +867,10 @@ async function getOrders() {
       error
     );
 
-    const supabaseError = new Error(
-      `No se pudieron consultar los pedidos: ${error.message}`
-    );
+    const supabaseError =
+      new Error(
+        `No se pudieron consultar los pedidos: ${error.message}`
+      );
 
     supabaseError.status = 500;
     supabaseError.details = error;
@@ -644,41 +878,7 @@ async function getOrders() {
     throw supabaseError;
   }
 
-  return (data || []).map((row) => {
-    const orderData =
-      row.order_data &&
-      typeof row.order_data === "object"
-        ? row.order_data
-        : {};
-
-    return {
-      ...orderData,
-
-      order_id:
-        row.order_id ||
-        orderData.order_id,
-
-      status:
-        row.status ||
-        orderData.status,
-
-      created_at:
-        row.created_at ||
-        orderData.created_at,
-
-      game:
-        row.game ||
-        orderData.game,
-
-      game_name:
-        row.game_name ||
-        orderData.game_name,
-
-      package:
-        row.package ||
-        orderData.package,
-    };
-  });
+  return data || [];
 }
 
 // ======================================================
@@ -687,11 +887,13 @@ async function getOrders() {
 
 function checkCredentials() {
   if (!SHOP2TOPUP_API_KEY) {
-    const error = new Error(
-      "SHOP2TOPUP_API_KEY no está configurada en Render."
-    );
+    const error =
+      new Error(
+        "SHOP2TOPUP_API_KEY no está configurada en Render."
+      );
 
     error.status = 503;
+
     throw error;
   }
 }
@@ -705,33 +907,39 @@ async function shop2topupRequest(
 
   const options = {
     method,
+
     headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${SHOP2TOPUP_API_KEY}`,
-      "Content-Type": "application/json",
+      Accept:
+        "application/json",
+
+      Authorization:
+        `Bearer ${SHOP2TOPUP_API_KEY}`,
+
+      "Content-Type":
+        "application/json",
     },
   };
 
   if (body !== undefined) {
-    options.body = JSON.stringify(body);
+    options.body =
+      JSON.stringify(body);
   }
 
-  const url = `${BASE_URL}${path}`;
+  const response =
+    await fetch(
+      `${BASE_URL}${path}`,
+      options
+    );
 
-  console.log(
-    "SHOP2TOPUP REQUEST:",
-    method,
-    url
-  );
-
-  const response = await fetch(url, options);
-
-  const text = await response.text();
+  const text =
+    await response.text();
 
   let data;
 
   try {
-    data = text ? JSON.parse(text) : {};
+    data = text
+      ? JSON.parse(text)
+      : {};
   } catch {
     data = {
       raw: text,
@@ -739,24 +947,35 @@ async function shop2topupRequest(
   }
 
   if (!response.ok) {
-    const error = new Error(
-      `SHOP2TOPUP API returned HTTP ${response.status}`
-    );
+    const error =
+      new Error(
+        `SHOP2TOPUP API returned HTTP ${response.status}`
+      );
 
-    error.status = response.status;
-    error.details = data;
+    error.status =
+      response.status;
+
+    error.details =
+      data;
 
     throw error;
   }
 
-  if (data && data.success === false) {
-    const error = new Error(
-      data?.error?.message ||
-        "SHOP2TOPUP devolvió un error."
-    );
+  if (
+    data &&
+    data.success === false
+  ) {
+    const error =
+      new Error(
+        data?.error?.message ||
+          "SHOP2TOPUP devolvió un error."
+      );
 
-    error.status = response.status || 400;
-    error.details = data;
+    error.status =
+      response.status || 400;
+
+    error.details =
+      data;
 
     throw error;
   }
@@ -765,11 +984,11 @@ async function shop2topupRequest(
 }
 
 // ======================================================
-// SALDO
+// CUENTA SHOP2TOPUP
 // ======================================================
 
 function extractShop2TopupBalance(data) {
-  const possibleValues = [
+  const values = [
     data?.account?.wallet,
     data?.wallet,
     data?.balance,
@@ -779,13 +998,14 @@ function extractShop2TopupBalance(data) {
     data?.data?.balance,
   ];
 
-  for (const value of possibleValues) {
+  for (const value of values) {
     if (
       value !== undefined &&
       value !== null &&
       value !== ""
     ) {
-      const numeric = Number(value);
+      const numeric =
+        Number(value);
 
       if (
         Number.isFinite(numeric) &&
@@ -800,13 +1020,15 @@ function extractShop2TopupBalance(data) {
 }
 
 async function getShop2TopupAccount() {
-  const data = await shop2topupRequest(
-    "/account",
-    "GET"
-  );
+  const data =
+    await shop2topupRequest(
+      "/account",
+      "GET"
+    );
 
   return {
     data,
+
     balance:
       extractShop2TopupBalance(data),
   };
@@ -823,11 +1045,17 @@ function sendError(res, error) {
   );
 
   res
-    .status(error.status || 500)
+    .status(
+      error.status || 500
+    )
     .json({
       ok: false,
-      error: error.message,
-      details: error.details || null,
+
+      error:
+        error.message,
+
+      details:
+        error.details || null,
     });
 }
 
@@ -835,26 +1063,40 @@ function sendError(res, error) {
 // ADMIN
 // ======================================================
 
-function requireAdmin(req, res, next) {
+function requireAdmin(
+  req,
+  res,
+  next
+) {
   if (!ADMIN_SECRET) {
-    return res.status(503).json({
-      ok: false,
-      error:
-        "ADMIN_SECRET no está configurado en Render.",
-    });
+    return res
+      .status(503)
+      .json({
+        ok: false,
+
+        error:
+          "ADMIN_SECRET no está configurado en Render.",
+      });
   }
 
   const suppliedSecret =
-    req.headers["x-admin-secret"];
+    req.headers[
+      "x-admin-secret"
+    ];
 
   if (
     !suppliedSecret ||
-    suppliedSecret !== ADMIN_SECRET
+    suppliedSecret !==
+      ADMIN_SECRET
   ) {
-    return res.status(401).json({
-      ok: false,
-      error: "No autorizado.",
-    });
+    return res
+      .status(401)
+      .json({
+        ok: false,
+
+        error:
+          "No autorizado.",
+      });
   }
 
   next();
@@ -864,59 +1106,94 @@ function requireAdmin(req, res, next) {
 // HEALTH
 // ======================================================
 
-app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "recargas-diamantes",
-    provider: "SHOP2TOPUP",
-    manual_payment: true,
-    supabase_configured: Boolean(supabase),
-  });
-});
+app.get(
+  "/health",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      service:
+        "recargas-diamantes",
+
+      provider:
+        "SHOP2TOPUP",
+
+      manual_payment:
+        true,
+
+      supabase_configured:
+        Boolean(supabase),
+    });
+  }
+);
 
 // ======================================================
 // STATUS
 // ======================================================
 
-app.get("/api/status", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "recargas-diamantes",
-    provider: "SHOP2TOPUP",
+app.get(
+  "/api/status",
+  (_req, res) => {
+    res.json({
+      ok: true,
 
-    api_configured:
-      Boolean(SHOP2TOPUP_API_KEY),
+      service:
+        "recargas-diamantes",
 
-    admin_configured:
-      Boolean(ADMIN_SECRET),
+      provider:
+        "SHOP2TOPUP",
 
-    supabase_configured:
-      Boolean(supabase),
+      api_configured:
+        Boolean(
+          SHOP2TOPUP_API_KEY
+        ),
 
-    manual_payment: true,
+      admin_configured:
+        Boolean(
+          ADMIN_SECRET
+        ),
 
-    base_url: BASE_URL,
+      supabase_configured:
+        Boolean(
+          supabase
+        ),
 
-    pricing: PRICING,
-  });
-});
+      manual_payment:
+        true,
+
+      base_url:
+        BASE_URL,
+
+      pricing:
+        PRICING,
+    });
+  }
+);
 
 // ======================================================
 // PRODUCTOS
 // ======================================================
 
-app.get("/api/products", (_req, res) => {
-  res.json({
-    ok: true,
-    currency: "USD",
-    pricing: PRICING,
-    products:
-      getProductsWithPrices(),
-  });
-});
+app.get(
+  "/api/products",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      currency:
+        "USD",
+
+      pricing:
+        PRICING,
+
+      products:
+        getProductsWithPrices(),
+    });
+  }
+);
 
 // ======================================================
-// ADMIN — SALDO
+// ADMIN - BALANCE
 // ======================================================
 
 app.get(
@@ -927,32 +1204,71 @@ app.get(
       const account =
         await getShop2TopupAccount();
 
-      if (account.balance === null) {
-        return res.status(502).json({
-          ok: false,
-          error:
-            "Shop2TopUp respondió correctamente, pero no se pudo identificar automáticamente el saldo.",
-          provider_response:
-            account.data,
-        });
+      if (
+        account.balance === null
+      ) {
+        return res
+          .status(502)
+          .json({
+            ok: false,
+
+            error:
+              "Shop2TopUp respondió correctamente, pero no se pudo identificar automáticamente el saldo.",
+
+            provider_response:
+              account.data,
+          });
       }
 
       res.json({
         ok: true,
+
         balance:
           account.balance,
-        currency: "USD",
+
+        currency:
+          "USD",
+
         account:
-          account.data.account || null,
+          account.data.account
+            ? {
+                id:
+                  account
+                    .data
+                    .account
+                    .id,
+
+                username:
+                  account
+                    .data
+                    .account
+                    .username,
+
+                enabled:
+                  account
+                    .data
+                    .account
+                    .enabled,
+
+                verified:
+                  account
+                    .data
+                    .account
+                    .verified,
+              }
+            : null,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// VALIDAR ID
+// VALIDAR JUGADOR
 // ======================================================
 
 app.post(
@@ -976,22 +1292,29 @@ app.post(
         );
 
       if (!player_id) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "player_id es obligatorio.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "player_id es obligatorio.",
+          });
       }
 
       let subCategoryId =
-        Number(sub_category_id);
+        Number(
+          sub_category_id
+        );
 
       if (
         !subCategoryId &&
         normalizedGame
       ) {
         const product =
-          PRODUCTS[normalizedGame];
+          PRODUCTS[
+            normalizedGame
+          ];
 
         const firstPackage =
           Object.values(
@@ -999,22 +1322,29 @@ app.post(
           )[0];
 
         subCategoryId =
-          firstPackage.sub_category_id;
+          firstPackage
+            .sub_category_id;
       }
 
       if (!subCategoryId) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "sub_category_id es obligatorio.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "sub_category_id es obligatorio.",
+          });
       }
 
       const body = {
         sub_category_id:
           subCategoryId,
+
         player_id:
-          String(player_id),
+          String(
+            player_id
+          ),
       };
 
       if (
@@ -1022,7 +1352,9 @@ app.post(
         zone_id !== ""
       ) {
         body.zone_id =
-          String(zone_id);
+          String(
+            zone_id
+          );
       }
 
       const data =
@@ -1034,10 +1366,14 @@ app.post(
 
       res.json({
         ok: true,
+
         data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -1066,17 +1402,20 @@ app.post(
         game,
         game_name,
         slug,
+
         package:
           packageKey,
+
         player_id,
         zone_id,
+
         payment_method,
         player_name,
       } = body;
 
-      // ------------------------------------------------
+      // --------------------------------------------------
       // JUEGO
-      // ------------------------------------------------
+      // --------------------------------------------------
 
       const gameKey =
         normalizeGame(
@@ -1086,79 +1425,102 @@ app.post(
         );
 
       if (!gameKey) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Juego no válido o no especificado.",
-          received_game:
-            game || null,
-          received_game_name:
-            game_name || null,
-          received_slug:
-            slug || null,
-          valid_games:
-            Object.keys(PRODUCTS),
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Juego no válido o no especificado.",
+
+            received_game:
+              game || null,
+
+            received_game_name:
+              game_name || null,
+
+            received_slug:
+              slug || null,
+
+            valid_games:
+              Object.keys(
+                PRODUCTS
+              ),
+          });
       }
 
       const product =
         PRODUCTS[gameKey];
 
-      // ------------------------------------------------
-      // PLAYER ID
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // PLAYER
+      // --------------------------------------------------
 
       if (!player_id) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "player_id es obligatorio.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "player_id es obligatorio.",
+          });
       }
 
-      // ------------------------------------------------
-      // PAQUETE
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // PACKAGE
+      // --------------------------------------------------
 
       if (
-        packageKey === undefined ||
-        packageKey === null ||
-        String(packageKey).trim() === ""
+        packageKey ===
+          undefined ||
+        packageKey ===
+          null ||
+        packageKey === ""
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "package es obligatorio.",
-          game: gameKey,
-        });
-      }
+        return res
+          .status(400)
+          .json({
+            ok: false,
 
-      const packageString =
-        String(packageKey);
+            error:
+              "package es obligatorio.",
+
+            game:
+              gameKey,
+          });
+      }
 
       const selected =
         product.packages[
-          packageString
+          String(packageKey)
         ];
 
       if (!selected) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Paquete no válido.",
-          game: gameKey,
-          package:
-            packageString,
-          available_packages:
-            Object.keys(
-              product.packages
-            ),
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Paquete no válido.",
+
+            game:
+              gameKey,
+
+            package:
+              String(packageKey),
+
+            available_packages:
+              Object.keys(
+                product.packages
+              ),
+          });
       }
 
-      // ------------------------------------------------
-      // ZONE ID
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // ZONE
+      // --------------------------------------------------
 
       if (
         product.requirements.includes(
@@ -1166,17 +1528,22 @@ app.post(
         ) &&
         !zone_id
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Zone ID es obligatorio.",
-          game: gameKey,
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Zone ID es obligatorio.",
+
+            game:
+              gameKey,
+          });
       }
 
-      // ------------------------------------------------
-      // PRECIO
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // PRECIOS
+      // --------------------------------------------------
 
       const prices =
         calculatePrices(
@@ -1189,18 +1556,23 @@ app.post(
         );
 
       if (!payment) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Método de pago no válido.",
-          received:
-            payment_method,
-          valid_methods: [
-            "transfermovil",
-            "saldo_movil",
-            "mlc",
-          ],
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Método de pago no válido.",
+
+            received:
+              payment_method,
+
+            valid_methods: [
+              "transfermovil",
+              "saldo_movil",
+              "mlc",
+            ],
+          });
       }
 
       let saleAmount;
@@ -1211,26 +1583,36 @@ app.post(
       ) {
         saleAmount =
           prices.sale_cup_transfermovil;
-      } else if (
+      }
+
+      if (
         payment ===
         "saldo_movil"
       ) {
         saleAmount =
           prices.sale_cup_saldo_movil;
-      } else {
+      }
+
+      if (
+        payment === "mlc"
+      ) {
         saleAmount =
           prices.sale_mlc;
       }
 
-      // ------------------------------------------------
-      // CREAR PEDIDO
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // ID
+      // --------------------------------------------------
 
       const orderId =
         crypto.randomUUID();
 
       const createdAt =
         new Date().toISOString();
+
+      // --------------------------------------------------
+      // PEDIDO
+      // --------------------------------------------------
 
       const order = {
         order_id:
@@ -1239,9 +1621,6 @@ app.post(
         status:
           "PENDING_PAYMENT",
 
-        created_at:
-          createdAt,
-
         game:
           gameKey,
 
@@ -1249,10 +1628,12 @@ app.post(
           product.name,
 
         package:
-          packageString,
+          String(packageKey),
 
         sub_category_id:
-          selected.sub_category_id,
+          Number(
+            selected.sub_category_id
+          ),
 
         player_id:
           String(player_id),
@@ -1277,16 +1658,42 @@ app.post(
           prices,
 
         provider_cost_usd:
-          Number(selected.cost_usd),
+          Number(
+            selected.cost_usd
+          ),
 
         provider_order_id:
-          null,
-
-        provider_response:
-          null,
+          "",
 
         payment_received:
           false,
+
+        authorized_at:
+          null,
+
+        submitted_at:
+          null,
+
+        rejected_at:
+          null,
+
+        rejection_reason:
+          "",
+
+        provider_response:
+          {},
+
+        recharge_error:
+          "",
+
+        recharge_error_details:
+          {},
+
+        balance_before:
+          0,
+
+        recharge_status:
+          "NOT_STARTED",
 
         authorized:
           false,
@@ -1294,72 +1701,72 @@ app.post(
         rejected:
           false,
 
-        recharge_status:
-          "NOT_STARTED",
+        created_at:
+          createdAt,
       };
 
-      console.log(
-        "PEDIDO ANTES DE SUPABASE:",
-        JSON.stringify(
-          {
-            order_id:
-              order.order_id,
-            game:
-              order.game,
-            game_name:
-              order.game_name,
-            package:
-              order.package,
-          },
-          null,
-          2
-        )
-      );
+      // --------------------------------------------------
+      // GUARDAR
+      // --------------------------------------------------
 
-      await saveOrder(order);
+      await saveOrder(
+        order
+      );
 
       console.log(
         "PEDIDO GUARDADO:",
-        order.order_id
+        order.order_id,
+        order.game,
+        order.game_name,
+        order.package,
+        order.sub_category_id
       );
 
-      res.status(201).json({
-        ok: true,
+      res
+        .status(201)
+        .json({
+          ok: true,
 
-        order: {
-          order_id:
-            order.order_id,
+          order: {
+            order_id:
+              order.order_id,
 
-          status:
-            order.status,
+            status:
+              order.status,
 
-          game:
-            order.game_name,
+            game:
+              order.game_name,
 
-          game_key:
-            order.game,
+            game_key:
+              order.game,
 
-          package:
-            order.package,
+            package:
+              order.package,
 
-          player_id:
-            order.player_id,
+            sub_category_id:
+              order.sub_category_id,
 
-          zone_id:
-            order.zone_id,
+            player_id:
+              order.player_id,
 
-          payment_method:
-            order.payment_method,
+            zone_id:
+              order.zone_id,
 
-          sale_amount:
-            order.sale_amount,
-        },
+            payment_method:
+              order.payment_method,
 
-        message:
-          "Pedido creado. Esperando confirmación de pago.",
-      });
+            sale_amount:
+              order.sale_amount,
+          },
+
+          message:
+            "Pedido creado. Esperando confirmación de pago.",
+        });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -1370,7 +1777,10 @@ app.post(
 
 app.get(
   "/api/order/:orderId",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const order =
         await getOrder(
@@ -1378,55 +1788,73 @@ app.get(
         );
 
       if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Pedido no encontrado.",
+          });
       }
 
       res.json({
         ok: true,
+
         order,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// ADMIN — LISTAR PEDIDOS
+// ADMIN - LISTAR PEDIDOS
 // ======================================================
 
 app.get(
   "/api/admin/orders",
   requireAdmin,
-  async (_req, res) => {
+  async (
+    _req,
+    res
+  ) => {
     try {
       const orders =
         await getOrders();
 
       res.json({
         ok: true,
+
         count:
           orders.length,
+
         orders,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// ADMIN — VER PEDIDO
+// ADMIN - VER PEDIDO
 // ======================================================
 
 app.get(
   "/api/admin/orders/:orderId",
   requireAdmin,
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const order =
         await getOrder(
@@ -1434,31 +1862,41 @@ app.get(
         );
 
       if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Pedido no encontrado.",
+          });
       }
 
       res.json({
         ok: true,
+
         order,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// ADMIN — PAGO RECIBIDO
+// ADMIN - PAGO RECIBIDO
 // ======================================================
 
 app.post(
   "/api/admin/orders/:orderId/payment-received",
   requireAdmin,
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const order =
         await getOrder(
@@ -1466,22 +1904,28 @@ app.post(
         );
 
       if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Pedido no encontrado.",
+          });
       }
 
       if (
         order.status !==
         "PENDING_PAYMENT"
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            `El pedido no está esperando pago. Estado actual: ${order.status}`,
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              `El pedido no está esperando pago. Estado actual: ${order.status}`,
+          });
       }
 
       order.payment_received =
@@ -1490,29 +1934,40 @@ app.post(
       order.status =
         "PAYMENT_RECEIVED";
 
-      order.payment_received_at =
-        new Date().toISOString();
+      await saveOrder(
+        order
+      );
 
-      await saveOrder(order);
+      console.log(
+        "PAGO CONFIRMADO:",
+        order.order_id
+      );
 
       res.json({
         ok: true,
+
         order,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// ADMIN — AUTORIZAR RECARGA
+// ADMIN - AUTORIZAR RECARGA
 // ======================================================
 
 app.post(
   "/api/admin/orders/:orderId/authorize",
   requireAdmin,
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     let order = null;
 
     try {
@@ -1522,84 +1977,94 @@ app.post(
         );
 
       if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Pedido no encontrado.",
+          });
       }
 
       if (
         order.status !==
         "PAYMENT_RECEIVED"
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Primero debes marcar el pago como recibido.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Primero debes marcar el pago como recibido.",
+          });
       }
 
       if (
         order.recharge_status ===
         "COMPLETED"
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "La recarga ya fue realizada.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "La recarga ya fue realizada.",
+          });
       }
 
       const gameKey =
         normalizeGame(
           order.game ||
-            order.slug ||
             order.game_name
         );
 
       if (!gameKey) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "No se pudo identificar el juego del pedido.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "No se pudo identificar el juego.",
+          });
       }
 
       const product =
         PRODUCTS[gameKey];
 
       if (!product) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Producto no encontrado.",
-        });
-      }
+        return res
+          .status(400)
+          .json({
+            ok: false,
 
-      const packageKey =
-        String(
-          order.package
-        );
+            error:
+              "Producto no encontrado.",
+          });
+      }
 
       const selected =
         product.packages[
-          packageKey
+          String(order.package)
         ];
 
       if (!selected) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Paquete no encontrado.",
-          package:
-            packageKey,
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Paquete no encontrado.",
+          });
       }
 
-      // ------------------------------------------------
-      // COMPROBAR SALDO
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // SALDO
+      // --------------------------------------------------
 
       const account =
         await getShop2TopupAccount();
@@ -1608,13 +2073,17 @@ app.post(
         account.balance ===
         null
       ) {
-        return res.status(502).json({
-          ok: false,
-          error:
-            "Shop2TopUp no devolvió un saldo reconocible.",
-          provider_response:
-            account.data,
-        });
+        return res
+          .status(502)
+          .json({
+            ok: false,
+
+            error:
+              "No se pudo identificar el saldo de Shop2TopUp.",
+
+            provider_response:
+              account.data,
+          });
       }
 
       const providerCost =
@@ -1631,55 +2100,63 @@ app.post(
         currentBalance <
         providerCost
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Saldo insuficiente en Shop2TopUp. La recarga NO fue enviada.",
-          balance:
-            currentBalance,
-          required:
-            providerCost,
-          currency:
-            "USD",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Saldo insuficiente en Shop2TopUp. La recarga NO fue enviada.",
+
+            balance:
+              currentBalance,
+
+            required:
+              providerCost,
+
+            currency:
+              "USD",
+          });
       }
 
-      // ------------------------------------------------
-      // GUARDAR ESTADO PROCESSING
-      // ------------------------------------------------
+      // --------------------------------------------------
+      // PROCESANDO
+      // --------------------------------------------------
+
+      const now =
+        new Date().toISOString();
 
       order.game =
         gameKey;
 
-      order.game_name =
-        product.name;
+      order.authorized_at =
+        now;
 
-      order.package =
-        packageKey;
-
-      order.authorized =
+      order.payment_received =
         true;
 
       order.status =
         "RECHARGE_PROCESSING";
 
+      order.balance_before =
+        currentBalance;
+
       order.recharge_status =
         "PROCESSING";
 
-      order.authorized_at =
-        new Date().toISOString();
-
-      order.balance_before =
-        currentBalance;
+      order.authorized =
+        true;
 
       order.provider_cost_usd =
         providerCost;
 
-      await saveOrder(order);
+      await saveOrder(
+        order
+      );
 
-      // ------------------------------------------------
+      // --------------------------------------------------
       // SHOP2TOPUP
-      // ------------------------------------------------
+      // --------------------------------------------------
 
       const providerOrderId =
         crypto.randomUUID();
@@ -1718,7 +2195,7 @@ app.post(
       };
 
       console.log(
-        "ENVIANDO SHOP2TOPUP:",
+        "AUTORIZANDO RECARGA:",
         JSON.stringify(
           providerBody,
           null,
@@ -1748,7 +2225,9 @@ app.post(
       order.submitted_at =
         new Date().toISOString();
 
-      await saveOrder(order);
+      await saveOrder(
+        order
+      );
 
       res.json({
         ok: true,
@@ -1772,41 +2251,50 @@ app.post(
 
       if (order) {
         try {
+          order.recharge_error =
+            error.message || "";
+
+          order.recharge_error_details =
+            error.details || {};
+
           order.recharge_status =
             "FAILED";
 
           order.status =
             "RECHARGE_FAILED";
 
-          order.recharge_error =
-            error.message;
-
-          order.recharge_error_details =
-            error.details ||
-            null;
-
-          await saveOrder(order);
-        } catch (saveError) {
+          await saveOrder(
+            order
+          );
+        } catch (
+          saveError
+        ) {
           console.error(
-            "NO SE PUDO GUARDAR EL ERROR:",
+            "ERROR GUARDANDO ERROR:",
             saveError
           );
         }
       }
 
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// ADMIN — RECHAZAR
+// ADMIN - RECHAZAR
 // ======================================================
 
 app.post(
   "/api/admin/orders/:orderId/reject",
   requireAdmin,
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const order =
         await getOrder(
@@ -1814,11 +2302,14 @@ app.post(
         );
 
       if (!order) {
-        return res.status(404).json({
-          ok: false,
-          error:
-            "Pedido no encontrado.",
-        });
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Pedido no encontrado.",
+          });
       }
 
       if (
@@ -1827,11 +2318,14 @@ app.post(
         order.status !==
           "PAYMENT_RECEIVED"
       ) {
-        return res.status(400).json({
-          ok: false,
-          error:
-            "Este pedido ya no puede ser rechazado.",
-        });
+        return res
+          .status(400)
+          .json({
+            ok: false,
+
+            error:
+              "Este pedido ya no puede ser rechazado.",
+          });
       }
 
       order.rejected =
@@ -1843,56 +2337,77 @@ app.post(
       order.rejected_at =
         new Date().toISOString();
 
+      order.recharge_status =
+        "REJECTED";
+
       order.rejection_reason =
         req.body?.reason ||
         "Pago no confirmado.";
 
-      await saveOrder(order);
+      await saveOrder(
+        order
+      );
 
       res.json({
         ok: true,
+
         order,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// SHOP2TOPUP — CUENTA
+// SHOP2TOPUP - CUENTA
 // ======================================================
 
 app.get(
   "/api/account",
-  async (_req, res) => {
+  async (
+    _req,
+    res
+  ) => {
     try {
       const account =
         await getShop2TopupAccount();
 
       res.json({
         ok: true,
+
         data:
           account.data,
+
         balance:
           account.balance,
+
         currency:
           "USD",
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
 
 // ======================================================
-// SHOP2TOPUP — CONSULTAR ORDEN
+// SHOP2TOPUP - ORDEN
 // ======================================================
 
 app.get(
   "/api/provider/order/:orderId",
   requireAdmin,
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const data =
         await shop2topupRequest(
@@ -1903,10 +2418,14 @@ app.get(
 
       res.json({
         ok: true,
+
         data,
       });
     } catch (error) {
-      sendError(res, error);
+      sendError(
+        res,
+        error
+      );
     }
   }
 );
@@ -1917,7 +2436,10 @@ app.get(
 
 app.post(
   "/api/webhook/shop2topup",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     console.log(
       "SHOP2TOPUP WEBHOOK:",
       JSON.stringify(
@@ -1929,6 +2451,7 @@ app.post(
 
     res.status(200).json({
       ok: true,
+
       received: true,
     });
   }
@@ -1938,64 +2461,72 @@ app.post(
 // 404
 // ======================================================
 
-app.use((_req, res) => {
-  res.status(404).json({
-    ok: false,
-    error:
-      "Ruta no encontrada.",
-  });
-});
+app.use(
+  (_req, res) => {
+    res
+      .status(404)
+      .json({
+        ok: false,
+
+        error:
+          "Ruta no encontrada.",
+      });
+  }
+);
 
 // ======================================================
 // INICIAR
 // ======================================================
 
-app.listen(PORT, () => {
-  console.log(
-    `Recargas Diamantes API listening on port ${PORT}`
-  );
+app.listen(
+  PORT,
+  () => {
+    console.log(
+      `Recargas Diamantes API listening on port ${PORT}`
+    );
 
-  console.log(
-    `SHOP2TOPUP API: ${BASE_URL}`
-  );
+    console.log(
+      `SHOP2TOPUP API: ${BASE_URL}`
+    );
 
-  console.log(
-    `SHOP2TOPUP_API_KEY: ${
-      SHOP2TOPUP_API_KEY
-        ? "CONFIGURADA"
-        : "NO CONFIGURADA"
-    }`
-  );
+    console.log(
+      `SHOP2TOPUP_API_KEY: ${
+        SHOP2TOPUP_API_KEY
+          ? "CONFIGURADA"
+          : "NO CONFIGURADA"
+      }`
+    );
 
-  console.log(
-    `ADMIN_SECRET: ${
-      ADMIN_SECRET
-        ? "CONFIGURADO"
-        : "NO CONFIGURADO"
-    }`
-  );
+    console.log(
+      `ADMIN_SECRET: ${
+        ADMIN_SECRET
+          ? "CONFIGURADO"
+          : "NO CONFIGURADO"
+      }`
+    );
 
-  console.log(
-    `SUPABASE_URL: ${
-      SUPABASE_URL
-        ? "CONFIGURADA"
-        : "NO CONFIGURADA"
-    }`
-  );
+    console.log(
+      `SUPABASE_URL: ${
+        SUPABASE_URL
+          ? "CONFIGURADA"
+          : "NO CONFIGURADA"
+      }`
+    );
 
-  console.log(
-    `SUPABASE_SERVICE_ROLE_KEY: ${
-      SUPABASE_SERVICE_ROLE_KEY
-        ? "CONFIGURADA"
-        : "NO CONFIGURADA"
-    }`
-  );
+    console.log(
+      `SUPABASE_SERVICE_ROLE_KEY: ${
+        SUPABASE_SERVICE_ROLE_KEY
+          ? "CONFIGURADA"
+          : "NO CONFIGURADA"
+      }`
+    );
 
-  console.log(
-    "Sistema de pago manual: ACTIVADO"
-  );
+    console.log(
+      "Sistema de pago manual: ACTIVADO"
+    );
 
-  console.log(
-    "Persistencia de pedidos: SUPABASE ACTIVADA"
-  );
-});
+    console.log(
+      "Persistencia de pedidos: SUPABASE ACTIVADA"
+    );
+  }
+);
