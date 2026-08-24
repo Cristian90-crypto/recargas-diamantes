@@ -34,6 +34,110 @@ function formatAmount(order) {
   )} CUP`;
 }
 
+/*
+ * Intenta encontrar el saldo aunque Shop2TopUp
+ * lo devuelva con nombres ligeramente diferentes.
+ */
+function extractBalance(data) {
+  const candidates = [
+    data?.data?.balance,
+    data?.data?.available_balance,
+    data?.data?.availableBalance,
+    data?.data?.wallet_balance,
+    data?.data?.walletBalance,
+    data?.data?.credit,
+    data?.data?.credits,
+    data?.balance,
+    data?.available_balance,
+    data?.availableBalance,
+    data?.wallet_balance,
+    data?.walletBalance,
+    data?.credit,
+    data?.credits,
+  ];
+
+  const found = candidates.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+  );
+
+  if (found !== undefined) {
+    return found;
+  }
+
+  /*
+   * Búsqueda adicional por si el proveedor
+   * devuelve el saldo dentro de otro objeto.
+   */
+  function searchObject(object) {
+    if (!object || typeof object !== "object") {
+      return null;
+    }
+
+    for (const [key, value] of Object.entries(object)) {
+      const normalizedKey = key
+        .toLowerCase()
+        .replace(/[-_\s]/g, "");
+
+      if (
+        normalizedKey === "balance" ||
+        normalizedKey === "availablebalance" ||
+        normalizedKey === "walletbalance" ||
+        normalizedKey === "credit"
+      ) {
+        if (
+          value !== undefined &&
+          value !== null &&
+          value !== ""
+        ) {
+          return value;
+        }
+      }
+
+      if (
+        value &&
+        typeof value === "object"
+      ) {
+        const nested = searchObject(value);
+
+        if (nested !== null) {
+          return nested;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  return searchObject(data);
+}
+
+function formatBalance(balance) {
+  if (
+    balance === null ||
+    balance === undefined ||
+    balance === ""
+  ) {
+    return "Saldo no disponible";
+  }
+
+  if (
+    typeof balance === "number"
+  ) {
+    return `$${balance.toFixed(2)} USD`;
+  }
+
+  const number = Number(balance);
+
+  if (Number.isFinite(number)) {
+    return `$${number.toFixed(2)} USD`;
+  }
+
+  return String(balance);
+}
+
 export default function Admin() {
   const [secret, setSecret] = useState(
     localStorage.getItem("admin_secret") || ""
@@ -41,8 +145,12 @@ export default function Admin() {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [checkingBalance, setCheckingBalance] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const [balance, setBalance] = useState(null);
+  const [balanceDetails, setBalanceDetails] = useState(null);
 
   const [loggedIn, setLoggedIn] = useState(
     Boolean(localStorage.getItem("admin_secret"))
@@ -127,6 +235,70 @@ export default function Admin() {
     }
   }
 
+  async function checkBalance() {
+    if (!secret.trim()) {
+      setError("Escribe tu ADMIN_SECRET.");
+      return;
+    }
+
+    try {
+      setCheckingBalance(true);
+      setError("");
+      setMessage("");
+      setBalance(null);
+      setBalanceDetails(null);
+
+      const data = await apiRequest(
+        "/api/account"
+      );
+
+      if (!data?.ok) {
+        throw new Error(
+          data?.error ||
+            "No se pudo consultar el saldo."
+        );
+      }
+
+      const detectedBalance =
+        extractBalance(data);
+
+      setBalance(
+        detectedBalance
+      );
+
+      setBalanceDetails(
+        data?.data || data
+      );
+
+      if (
+        detectedBalance === null ||
+        detectedBalance === undefined
+      ) {
+        setMessage(
+          "⚠️ Shop2TopUp respondió correctamente, pero no se pudo identificar automáticamente el saldo."
+        );
+      } else {
+        setMessage(
+          `💰 Saldo disponible: ${formatBalance(
+            detectedBalance
+          )}`
+        );
+      }
+    } catch (err) {
+      console.error(
+        "CHECK BALANCE ERROR:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "No se pudo comprobar el saldo de Shop2TopUp."
+      );
+    } finally {
+      setCheckingBalance(false);
+    }
+  }
+
   async function markPaymentReceived(orderId) {
     if (
       !window.confirm(
@@ -170,7 +342,7 @@ export default function Admin() {
   async function authorizeRecharge(orderId) {
     if (
       !window.confirm(
-        "⚠️ ATENCIÓN\n\nEsto enviará la recarga a Shop2TopUp.\n\n¿Confirmas que quieres autorizarla?"
+        "⚠️ ATENCIÓN\n\nEsto enviará la recarga a Shop2TopUp.\n\nEl servidor comprobará las condiciones de seguridad antes de realizarla.\n\n¿Confirmas que quieres autorizarla?"
       )
     ) {
       return;
@@ -195,6 +367,12 @@ export default function Admin() {
       );
 
       await loadOrders();
+
+      /*
+       * Actualizamos el saldo después de una
+       * autorización exitosa.
+       */
+      await checkBalance();
     } catch (err) {
       console.error(err);
 
@@ -264,6 +442,8 @@ export default function Admin() {
     setLoggedIn(false);
     setError("");
     setMessage("");
+    setBalance(null);
+    setBalanceDetails(null);
   }
 
   useEffect(() => {
@@ -398,7 +578,8 @@ export default function Admin() {
         }
 
         .login-button,
-        .refresh-button {
+        .refresh-button,
+        .balance-button {
           width: 100%;
           border: none;
           border-radius: 12px;
@@ -412,6 +593,14 @@ export default function Admin() {
           width: auto;
           padding:
             11px 16px;
+        }
+
+        .balance-button {
+          background: #059669;
+        }
+
+        .balance-button:hover {
+          background: #047857;
         }
 
         .alert {
@@ -449,8 +638,51 @@ export default function Admin() {
             rgba(15,23,42,.06);
         }
 
+        .toolbar-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
         .count {
           font-weight: 800;
+        }
+
+        .balance-card {
+          background:
+            linear-gradient(
+              135deg,
+              #ecfdf5,
+              #d1fae5
+            );
+          border:
+            1px solid #a7f3d0;
+          border-radius: 15px;
+          padding: 18px;
+          margin-bottom: 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+        }
+
+        .balance-title {
+          color: #047857;
+          font-size: 13px;
+          font-weight: 800;
+          margin-bottom: 5px;
+        }
+
+        .balance-value {
+          color: #065f46;
+          font-size: 25px;
+          font-weight: 900;
+        }
+
+        .balance-note {
+          color: #047857;
+          font-size: 12px;
+          margin-top: 5px;
         }
 
         .orders {
@@ -549,6 +781,10 @@ export default function Admin() {
           background: #2563eb;
         }
 
+        .authorize-button:hover {
+          background: #1d4ed8;
+        }
+
         .reject-button {
           background: #dc2626;
         }
@@ -565,6 +801,16 @@ export default function Admin() {
           text-align: center;
           padding: 30px;
           color: #64748b;
+        }
+
+        .provider-data {
+          margin-top: 15px;
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 11px;
+          color: #64748b;
+          font-size: 12px;
+          overflow-x: auto;
         }
 
         @media (max-width: 600px) {
@@ -601,8 +847,18 @@ export default function Admin() {
             flex-direction: column;
           }
 
-          .refresh-button {
+          .toolbar-actions {
+            flex-direction: column;
+          }
+
+          .refresh-button,
+          .balance-button {
             width: 100%;
+          }
+
+          .balance-card {
+            align-items: stretch;
+            flex-direction: column;
           }
 
           .action {
@@ -685,23 +941,101 @@ export default function Admin() {
             </div>
           )}
 
+          {balance !== null && (
+            <div className="balance-card">
+              <div>
+                <div className="balance-title">
+                  💰 SALDO SHOP2TOPUP
+                </div>
+
+                <div className="balance-value">
+                  {formatBalance(balance)}
+                </div>
+
+                <div className="balance-note">
+                  Saldo consultado directamente desde el servidor.
+                </div>
+              </div>
+
+              <button
+                className="balance-button"
+                onClick={checkBalance}
+                disabled={
+                  checkingBalance ||
+                  loading
+                }
+              >
+                {checkingBalance
+                  ? "🔄 Comprobando..."
+                  : "💰 Comprobar saldo"}
+              </button>
+            </div>
+          )}
+
+          {balance === null && (
+            <div className="balance-card">
+              <div>
+                <div className="balance-title">
+                  💰 SALDO SHOP2TOPUP
+                </div>
+
+                <div className="balance-value">
+                  No comprobado
+                </div>
+
+                <div className="balance-note">
+                  Comprueba el saldo antes de autorizar recargas.
+                </div>
+              </div>
+
+              <button
+                className="balance-button"
+                onClick={checkBalance}
+                disabled={
+                  checkingBalance ||
+                  loading
+                }
+              >
+                {checkingBalance
+                  ? "🔄 Comprobando..."
+                  : "💰 Comprobar saldo"}
+              </button>
+            </div>
+          )}
+
           <div className="toolbar">
             <span className="count">
               📋 Pedidos: {orders.length}
             </span>
 
-            <button
-              className="refresh-button"
-              onClick={loadOrders}
-              disabled={loading}
-            >
-              {loading
-                ? "🔄 Cargando..."
-                : "🔄 Actualizar"}
-            </button>
+            <div className="toolbar-actions">
+              <button
+                className="balance-button"
+                onClick={checkBalance}
+                disabled={
+                  checkingBalance ||
+                  loading
+                }
+              >
+                {checkingBalance
+                  ? "🔄 Comprobando..."
+                  : "💰 Comprobar saldo"}
+              </button>
+
+              <button
+                className="refresh-button"
+                onClick={loadOrders}
+                disabled={loading}
+              >
+                {loading
+                  ? "🔄 Cargando..."
+                  : "🔄 Actualizar"}
+              </button>
+            </div>
           </div>
 
-          {loading && orders.length === 0 ? (
+          {loading &&
+          orders.length === 0 ? (
             <div className="loading">
               🔄 Cargando pedidos...
             </div>
@@ -817,9 +1151,7 @@ export default function Admin() {
                       </span>
 
                       <strong className="amount">
-                        {formatAmount(
-                          order
-                        )}
+                        {formatAmount(order)}
                       </strong>
                     </div>
 
@@ -844,8 +1176,7 @@ export default function Admin() {
                       }}
                     >
                       <span>
-                        Shop2TopUp
-                        Order ID
+                        Shop2TopUp Order ID
                       </span>
 
                       <strong>
@@ -853,6 +1184,16 @@ export default function Admin() {
                           order.provider_order_id
                         }
                       </strong>
+                    </div>
+                  )}
+
+                  {order.recharge_error && (
+                    <div className="alert error" style={{
+                      marginTop: "12px",
+                      marginBottom: 0,
+                    }}>
+                      ❌ Error de recarga:{" "}
+                      {order.recharge_error}
                     </div>
                   )}
 
