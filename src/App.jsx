@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
+import Admin from "./admin";
 const API_BASE = "https://recargas-diamantes.onrender.com";
 const WHATSAPP_NUMBER = "5350504941";
 
@@ -185,6 +185,9 @@ function extractOrderId(data) {
 }
 
 function App() {
+    if (window.location.pathname.endsWith("/admin")) {
+    return <Admin />;
+  }
   const [products, setProducts] = useState(null);
 
   const [gameKey, setGameKey] = useState("freefire");
