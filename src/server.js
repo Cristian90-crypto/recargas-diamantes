@@ -3,18 +3,12 @@ import crypto from "crypto";
 
 const app = express();
 
-// ======================================================
-// CORS
-// ======================================================
-
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-
   res.header(
     "Access-Control-Allow-Methods",
     "GET,POST,PUT,PATCH,DELETE,OPTIONS"
   );
-
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Admin-Secret"
@@ -38,7 +32,7 @@ const ADMIN_SECRET =
   process.env.ADMIN_SECRET;
 
 const BASE_URL =
-  "https://portal.shop2topup.com/api/endpoints/v1";
+  "https://shop2topup.com/api/endpoints/v1";
 
 // ======================================================
 // PRECIOS
@@ -50,7 +44,7 @@ const PRICING = {
   mlc_per_usd: 2,
 
   reference_cost_usd: 0.731179,
-  reference_sale_usd: 1.0,
+  reference_sale_usd: 1,
 };
 
 // ======================================================
@@ -280,7 +274,7 @@ const PRODUCTS = {
 };
 
 // ======================================================
-// PEDIDOS EN MEMORIA
+// PEDIDOS
 // ======================================================
 
 const ORDERS = new Map();
@@ -403,144 +397,14 @@ function getProductsWithPrices() {
 }
 
 // ======================================================
-// BUSCAR SALDO
-// ======================================================
-//
-// Shop2TopUp puede devolver el saldo con
-// nombres diferentes dependiendo de la respuesta.
-//
-// Esta función busca recursivamente campos comunes.
-// ======================================================
-
-function findBalance(
-  value,
-  path = "root",
-  visited = new Set()
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
-  }
-
-  if (
-    typeof value !== "object"
-  ) {
-    return null;
-  }
-
-  if (visited.has(value)) {
-    return null;
-  }
-
-  visited.add(value);
-
-  const balanceKeys = new Set([
-    "balance",
-    "availablebalance",
-    "available_balance",
-    "walletbalance",
-    "wallet_balance",
-    "accountbalance",
-    "account_balance",
-    "credit",
-    "credits",
-    "funds",
-    "availablefunds",
-    "available_funds",
-  ]);
-
-  for (
-    const [key, child] of Object.entries(value)
-  ) {
-    const normalizedKey =
-      key
-        .toLowerCase()
-        .replace(/[-_\s]/g, "");
-
-    if (
-      balanceKeys.has(normalizedKey)
-    ) {
-      const numeric =
-        Number(child);
-
-      if (
-        Number.isFinite(numeric)
-      ) {
-        return {
-          value: numeric,
-          key,
-          path: `${path}.${key}`,
-        };
-      }
-    }
-  }
-
-  for (
-    const [key, child] of Object.entries(value)
-  ) {
-    if (
-      child &&
-      typeof child === "object"
-    ) {
-      const result =
-        findBalance(
-          child,
-          `${path}.${key}`,
-          visited
-        );
-
-      if (result) {
-        return result;
-      }
-    }
-  }
-
-  return null;
-}
-
-// ======================================================
-// OBTENER CUENTA / SALDO DEL PROVEEDOR
-// ======================================================
-
-async function getShop2TopupAccount() {
-  const data =
-    await shop2topupRequest(
-      "/account"
-    );
-
-  const detected =
-    findBalance(data);
-
-  return {
-    provider_response:
-      data,
-
-    balance:
-      detected?.value ?? null,
-
-    balance_key:
-      detected?.key ?? null,
-
-    balance_path:
-      detected?.path ?? null,
-
-    balance_found:
-      Boolean(detected),
-  };
-}
-
-// ======================================================
-// AUTENTICACIÓN SHOP2TOPUP
+// CREDENCIALES
 // ======================================================
 
 function checkCredentials() {
   if (!SHOP2TOPUP_API_KEY) {
-    const error =
-      new Error(
-        "SHOP2TOPUP_API_KEY no está configurada en Render."
-      );
+    const error = new Error(
+      "SHOP2TOPUP_API_KEY no está configurada en Render."
+    );
 
     error.status = 503;
 
@@ -549,7 +413,7 @@ function checkCredentials() {
 }
 
 // ======================================================
-// PETICIONES SHOP2TOPUP
+// SHOP2TOPUP REQUEST
 // ======================================================
 
 async function shop2topupRequest(
@@ -604,10 +468,9 @@ async function shop2topupRequest(
   }
 
   if (!response.ok) {
-    const error =
-      new Error(
-        `SHOP2TOPUP API returned HTTP ${response.status}`
-      );
+    const error = new Error(
+      `SHOP2TOPUP API returned HTTP ${response.status}`
+    );
 
     error.status =
       response.status;
@@ -618,7 +481,85 @@ async function shop2topupRequest(
     throw error;
   }
 
+  if (
+    data &&
+    data.success === false
+  ) {
+    const error = new Error(
+      data?.error?.message ||
+        "SHOP2TOPUP devolvió un error."
+    );
+
+    error.status =
+      response.status || 400;
+
+    error.details =
+      data;
+
+    throw error;
+  }
+
   return data;
+}
+
+// ======================================================
+// EXTRAER SALDO REAL
+// ======================================================
+
+function extractShop2TopupBalance(data) {
+  const possibleValues = [
+    data?.account?.wallet,
+    data?.wallet,
+    data?.balance,
+    data?.account?.balance,
+    data?.data?.account?.wallet,
+    data?.data?.wallet,
+    data?.data?.balance,
+  ];
+
+  for (
+    const value of possibleValues
+  ) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      const numeric =
+        Number(value);
+
+      if (
+        Number.isFinite(numeric) &&
+        numeric >= 0
+      ) {
+        return numeric;
+      }
+    }
+  }
+
+  return null;
+}
+
+// ======================================================
+// OBTENER CUENTA / SALDO
+// ======================================================
+
+async function getShop2TopupAccount() {
+  const data =
+    await shop2topupRequest(
+      "/account",
+      "GET"
+    );
+
+  const balance =
+    extractShop2TopupBalance(
+      data
+    );
+
+  return {
+    data,
+    balance,
+  };
 }
 
 // ======================================================
@@ -648,7 +589,7 @@ function sendError(
 }
 
 // ======================================================
-// AUTORIZACIÓN ADMIN
+// ADMIN AUTH
 // ======================================================
 
 function requireAdmin(
@@ -756,12 +697,71 @@ app.get(
 
       currency: "USD",
 
-      pricing:
-        PRICING,
+      pricing: PRICING,
 
       products:
         getProductsWithPrices(),
     });
+  }
+);
+
+// ======================================================
+// ADMIN — COMPROBAR SALDO
+// ======================================================
+
+app.get(
+  "/api/admin/balance",
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const account =
+        await getShop2TopupAccount();
+
+      if (
+        account.balance === null
+      ) {
+        return res.status(502).json({
+          ok: false,
+
+          error:
+            "Shop2TopUp respondió correctamente, pero no se pudo identificar automáticamente el saldo.",
+
+          provider_response:
+            account.data,
+        });
+      }
+
+      res.json({
+        ok: true,
+
+        balance:
+          account.balance,
+
+        currency: "USD",
+
+        account:
+          account.data.account
+            ? {
+                id:
+                  account.data.account.id,
+
+                username:
+                  account.data.account.username,
+
+                enabled:
+                  account.data.account.enabled,
+
+                verified:
+                  account.data.account.verified,
+              }
+            : null,
+      });
+    } catch (error) {
+      sendError(
+        res,
+        error
+      );
+    }
   }
 );
 
@@ -833,8 +833,7 @@ app.post(
       };
 
       if (
-        zone_id !==
-          undefined &&
+        zone_id !== undefined &&
         zone_id !== ""
       ) {
         body.zone_id =
@@ -876,6 +875,7 @@ app.post(
 
         player_id,
         zone_id,
+
         payment_method,
         player_name,
       } = req.body;
@@ -1093,7 +1093,7 @@ app.post(
 );
 
 // ======================================================
-// CONSULTAR PEDIDO PÚBLICO
+// CONSULTAR PEDIDO
 // ======================================================
 
 app.get(
@@ -1217,111 +1217,6 @@ app.get(
 );
 
 // ======================================================
-// ADMIN — COMPROBAR SALDO
-// ======================================================
-//
-// IMPORTANTE:
-// Este endpoint NO crea ninguna recarga.
-// Solamente consulta la cuenta del proveedor.
-// ======================================================
-
-app.get(
-  "/api/admin/account",
-  requireAdmin,
-  async (_req, res) => {
-    try {
-      const account =
-        await getShop2TopupAccount();
-
-      console.log(
-        "SHOP2TOPUP ACCOUNT:",
-        JSON.stringify(
-          account.provider_response,
-          null,
-          2
-        )
-      );
-
-      res.json({
-        ok: true,
-
-        balance:
-          account.balance,
-
-        balance_found:
-          account.balance_found,
-
-        balance_key:
-          account.balance_key,
-
-        balance_path:
-          account.balance_path,
-
-        data:
-          account.provider_response,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
-      );
-    }
-  }
-);
-
-// ======================================================
-// ADMIN — COMPATIBILIDAD /api/account
-// ======================================================
-//
-// Admin.jsx anterior utiliza /api/account.
-// Lo protegemos con ADMIN_SECRET.
-// ======================================================
-
-app.get(
-  "/api/account",
-  requireAdmin,
-  async (_req, res) => {
-    try {
-      const account =
-        await getShop2TopupAccount();
-
-      console.log(
-        "SHOP2TOPUP ACCOUNT:",
-        JSON.stringify(
-          account.provider_response,
-          null,
-          2
-        )
-      );
-
-      res.json({
-        ok: true,
-
-        balance:
-          account.balance,
-
-        balance_found:
-          account.balance_found,
-
-        balance_key:
-          account.balance_key,
-
-        balance_path:
-          account.balance_path,
-
-        data:
-          account.provider_response,
-      });
-    } catch (error) {
-      sendError(
-        res,
-        error
-      );
-    }
-  }
-);
-
-// ======================================================
 // ADMIN — MARCAR PAGO RECIBIDO
 // ======================================================
 
@@ -1374,7 +1269,6 @@ app.post(
 
     res.json({
       ok: true,
-
       order,
     });
   }
@@ -1382,18 +1276,6 @@ app.post(
 
 // ======================================================
 // ADMIN — AUTORIZAR RECARGA
-// ======================================================
-//
-// SEGURIDAD:
-//
-// 1. El pedido debe existir.
-// 2. El pago debe estar confirmado.
-// 3. No debe estar completado.
-// 4. Se consulta el saldo de Shop2TopUp.
-// 5. Si no se identifica el saldo -> SE DETIENE.
-// 6. Si el saldo es menor al costo -> SE DETIENE.
-// 7. Solo entonces se crea la recarga.
-//
 // ======================================================
 
 app.post(
@@ -1467,135 +1349,72 @@ app.post(
       }
 
       // ==================================================
-      // PASO DE SEGURIDAD: COMPROBAR SALDO
+      // COMPROBAR SALDO JUSTO ANTES DE RECARGAR
       // ==================================================
-
-      console.log(
-        "COMPROBANDO SALDO ANTES DE RECARGAR:",
-        order.order_id
-      );
 
       const account =
         await getShop2TopupAccount();
 
-      order.last_balance_check = {
-        checked_at:
-          new Date().toISOString(),
-
-        balance:
-          account.balance,
-
-        balance_found:
-          account.balance_found,
-
-        balance_key:
-          account.balance_key,
-
-        balance_path:
-          account.balance_path,
-      };
-
-      /*
-       * Si no podemos identificar el saldo,
-       * NO hacemos ninguna llamada a /orders/create.
-       */
       if (
-        !account.balance_found ||
-        !Number.isFinite(
-          Number(
-            account.balance
-          )
-        )
+        account.balance === null
       ) {
-        order.recharge_status =
-          "BALANCE_UNKNOWN";
-
-        order.status =
-          "PAYMENT_RECEIVED";
-
-        order.recharge_error =
-          "No se pudo identificar automáticamente el saldo de Shop2TopUp. La recarga NO fue enviada.";
-
-        order.provider_account_response =
-          account.provider_response;
-
-        ORDERS.set(
-          order.order_id,
-          order
-        );
-
-        return res.status(409).json({
+        return res.status(502).json({
           ok: false,
 
           error:
-            "No se pudo identificar automáticamente el saldo de Shop2TopUp. La recarga NO fue enviada.",
+            "No se puede autorizar la recarga porque Shop2TopUp no devolvió un saldo reconocible.",
 
-          balance_found:
-            false,
-
-          account:
-            account.provider_response,
+          provider_response:
+            account.data,
         });
       }
-
-      const providerBalance =
-        Number(
-          account.balance
-        );
 
       const providerCost =
         Number(
           selected.cost_usd
         );
 
-      /*
-       * Guardamos el saldo para poder verlo
-       * desde el panel administrativo.
-       */
-      order.provider_balance =
-        providerBalance;
-
-      order.provider_cost_usd =
-        providerCost;
-
-      // ==================================================
-      // COMPROBAR QUE EL SALDO SEA SUFICIENTE
-      // ==================================================
-
-      if (
-        providerBalance <
-        providerCost
-      ) {
-        order.recharge_status =
-          "INSUFFICIENT_BALANCE";
-
-        order.status =
-          "PAYMENT_RECEIVED";
-
-        order.recharge_error =
-          `Saldo insuficiente. Saldo disponible: ${providerBalance} USD. Costo de la recarga: ${providerCost} USD.`;
-
-        ORDERS.set(
-          order.order_id,
-          order
+      const currentBalance =
+        Number(
+          account.balance
         );
 
-        return res.status(409).json({
+      if (
+        !Number.isFinite(
+          providerCost
+        ) ||
+        providerCost <= 0
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Costo del producto inválido.",
+        });
+      }
+
+      if (
+        currentBalance <
+        providerCost
+      ) {
+        return res.status(400).json({
           ok: false,
 
           error:
             "Saldo insuficiente en Shop2TopUp. La recarga NO fue enviada.",
 
           balance:
-            providerBalance,
+            currentBalance,
 
           required:
             providerCost,
+
+          currency:
+            "USD",
         });
       }
 
       // ==================================================
-      // SALDO SUFICIENTE
+      // AUTORIZAR
       // ==================================================
 
       order.authorized =
@@ -1610,13 +1429,19 @@ app.post(
       order.authorized_at =
         new Date().toISOString();
 
+      order.balance_before =
+        currentBalance;
+
+      order.provider_cost_usd =
+        providerCost;
+
       ORDERS.set(
         order.order_id,
         order
       );
 
       // ==================================================
-      // CREAR RECARGA
+      // CREAR ORDEN SHOP2TOPUP
       // ==================================================
 
       const providerOrderId =
@@ -1658,14 +1483,6 @@ app.post(
       };
 
       console.log(
-        "SALDO SUFICIENTE.",
-        "Saldo:",
-        providerBalance,
-        "Costo:",
-        providerCost
-      );
-
-      console.log(
         "AUTORIZANDO RECARGA:",
         providerBody
       );
@@ -1699,7 +1516,7 @@ app.post(
 
       console.log(
         "RECARGA ENVIADA A SHOP2TOPUP:",
-        order.order_id
+        order
       );
 
       res.json({
@@ -1707,6 +1524,12 @@ app.post(
 
         message:
           "La recarga fue enviada a Shop2TopUp.",
+
+        balance_before:
+          currentBalance,
+
+        provider_cost:
+          providerCost,
 
         order,
       });
@@ -1720,20 +1543,8 @@ app.post(
         order.recharge_status =
           "FAILED";
 
-        /*
-         * Si falló antes de enviar la orden,
-         * conservamos PAYMENT_RECEIVED para
-         * evitar perder el pedido.
-         */
-        if (
-          !order.provider_order_id
-        ) {
-          order.status =
-            "PAYMENT_RECEIVED";
-        } else {
-          order.status =
-            "RECHARGE_FAILED";
-        }
+        order.status =
+          "RECHARGE_FAILED";
 
         order.recharge_error =
           error.message;
@@ -1813,6 +1624,38 @@ app.post(
 
       order,
     });
+  }
+);
+
+// ======================================================
+// SHOP2TOPUP — CUENTA
+// ======================================================
+
+app.get(
+  "/api/account",
+  async (_req, res) => {
+    try {
+      const account =
+        await getShop2TopupAccount();
+
+      res.json({
+        ok: true,
+
+        data:
+          account.data,
+
+        balance:
+          account.balance,
+
+        currency:
+          "USD",
+      });
+    } catch (error) {
+      sendError(
+        res,
+        error
+      );
+    }
   }
 );
 
@@ -1916,10 +1759,6 @@ app.listen(
 
     console.log(
       "Sistema de pago manual: ACTIVADO"
-    );
-
-    console.log(
-      "Protección de saldo antes de recargar: ACTIVADA"
     );
   }
 );
