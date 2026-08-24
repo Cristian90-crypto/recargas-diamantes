@@ -1,158 +1,101 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const API_BASE = "https://recargas-diamantes.onrender.com";
-const STORAGE_KEY = "recargas_admin_secret";
 
-const STATUS_LABELS = {
-  PENDING_PAYMENT: "🟡 Pendiente de pago",
-  PAYMENT_RECEIVED: "🟢 Pago recibido",
-  RECHARGE_PROCESSING: "🔵 Procesando recarga",
-  RECHARGE_SUBMITTED: "🔵 Recarga enviada",
-  RECHARGE_FAILED: "🔴 Recarga fallida",
-  REJECTED: "⚫ Rechazado",
-};
+function formatDate(date) {
+  if (!date) return "—";
 
-function formatMoney(order) {
-  if (order?.payment_method === "mlc") {
-    return `${Number(order.sale_amount || 0).toFixed(2)} MLC`;
-  }
-
-  return `${Math.round(
-    Number(order.sale_amount || 0)
-  ).toLocaleString("es-CU")} CUP`;
-}
-
-function formatDate(value) {
-  if (!value) return "";
-
-  try {
-    return new Date(value).toLocaleString("es-CU", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  } catch {
-    return value;
-  }
-}
-
-function gameLabel(order) {
-  return order?.game_name || order?.game || "Juego";
-}
-
-function packageLabel(order) {
-  if (order?.game === "pubg") {
-    return `${Number(order.package || 0).toLocaleString(
-      "es-CU"
-    )} UC`;
-  }
-
-  return `${Number(order.package || 0).toLocaleString(
-    "es-CU"
-  )} 💎`;
-}
-
-async function apiRequest(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+  return new Date(date).toLocaleString("es-CU", {
+    dateStyle: "short",
+    timeStyle: "short",
   });
+}
 
-  const text = await response.text();
+function getStatusLabel(status) {
+  const labels = {
+    PENDING_PAYMENT: "🟡 Esperando pago",
+    PAYMENT_RECEIVED: "🟢 Pago recibido",
+    RECHARGE_PROCESSING: "🔄 Procesando recarga",
+    RECHARGE_SUBMITTED: "📤 Recarga enviada",
+    RECHARGE_FAILED: "🔴 Recarga fallida",
+    REJECTED: "❌ Rechazado",
+  };
 
-  let data = {};
+  return labels[status] || status || "—";
+}
 
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(
-      `Respuesta inválida del servidor. HTTP ${response.status}`
-    );
+function formatAmount(order) {
+  if (order.payment_method === "mlc") {
+    return `${order.sale_amount} MLC`;
   }
 
-  if (!response.ok) {
-    throw new Error(
-      data?.error || `Error HTTP ${response.status}`
-    );
-  }
-
-  return data;
+  return `${Number(order.sale_amount || 0).toLocaleString(
+    "es-CU"
+  )} CUP`;
 }
 
 export default function Admin() {
   const [secret, setSecret] = useState(
-    () =>
-      sessionStorage.getItem(STORAGE_KEY) || ""
+    localStorage.getItem("admin_secret") || ""
   );
 
-  const [loggedIn, setLoggedIn] = useState(false);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [workingId, setWorkingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [lastRefresh, setLastRefresh] = useState("");
 
-  const pendingCount = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.status === "PENDING_PAYMENT"
-      ).length,
-    [orders]
+  const [loggedIn, setLoggedIn] = useState(
+    Boolean(localStorage.getItem("admin_secret"))
   );
 
-  const paymentReceivedCount = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.status === "PAYMENT_RECEIVED"
-      ).length,
-    [orders]
-  );
-
-  const activeCount = useMemo(
-    () =>
-      orders.filter((order) =>
-        [
-          "RECHARGE_PROCESSING",
-          "RECHARGE_SUBMITTED",
-        ].includes(order.status)
-      ).length,
-    [orders]
-  );
-
-  useEffect(() => {
-    if (!loggedIn) return;
-
-    loadOrders();
-
-    const timer = setInterval(
-      loadOrders,
-      15000
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(
+      `${API_BASE}${url}`,
+      {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Secret": secret,
+          ...(options.headers || {}),
+        },
+      }
     );
 
-    return () =>
-      clearInterval(timer);
-  }, [loggedIn]);
+    const text = await response.text();
+
+    let data;
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(
+        `El servidor respondió algo que no es JSON. HTTP ${response.status}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+          `Error HTTP ${response.status}`
+      );
+    }
+
+    return data;
+  }
 
   async function loadOrders() {
-    if (!secret) return;
+    if (!secret.trim()) {
+      setError("Escribe tu ADMIN_SECRET.");
+      return;
+    }
 
     try {
       setLoading(true);
       setError("");
+      setMessage("");
 
       const data = await apiRequest(
-        `${API_BASE}/api/admin/orders`,
-        {
-          headers: {
-            "X-Admin-Secret": secret,
-          },
-        }
+        "/api/admin/orders"
       );
 
       if (!data?.ok) {
@@ -162,175 +105,573 @@ export default function Admin() {
         );
       }
 
-      setOrders(
-        Array.isArray(data.orders)
-          ? data.orders
-          : []
-      );
+      setOrders(data.orders || []);
 
-      setLastRefresh(
-        new Date().toLocaleTimeString("es-CU")
+      localStorage.setItem(
+        "admin_secret",
+        secret
       );
 
       setLoggedIn(true);
     } catch (err) {
+      console.error(err);
+
       setLoggedIn(false);
-      setOrders([]);
 
       setError(
         err.message ||
           "No se pudieron cargar los pedidos."
-      );
-
-      sessionStorage.removeItem(
-        STORAGE_KEY
       );
     } finally {
       setLoading(false);
     }
   }
 
-  async function login(event) {
-    event.preventDefault();
-
-    setError("");
-    setMessage("");
-
-    if (!secret.trim()) {
-      setError(
-        "Escribe tu clave de administrador."
-      );
+  async function markPaymentReceived(orderId) {
+    if (
+      !window.confirm(
+        "¿Confirmas que recibiste el pago de este pedido?"
+      )
+    ) {
       return;
     }
 
-    sessionStorage.setItem(
-      STORAGE_KEY,
-      secret.trim()
-    );
-
-    setSecret(secret.trim());
-    setLoggedIn(true);
-  }
-
-  function logout() {
-    sessionStorage.removeItem(
-      STORAGE_KEY
-    );
-
-    setSecret("");
-    setLoggedIn(false);
-    setOrders([]);
-    setMessage("");
-    setError("");
-  }
-
-  function goStore() {
-    window.location.hash = "";
-  }
-
-  async function performAction(
-    orderId,
-    action,
-    successText
-  ) {
-    if (!orderId) return;
-
     try {
-      setWorkingId(
-        `${action}:${orderId}`
-      );
-
+      setLoading(true);
       setError("");
       setMessage("");
 
-      const data = await apiRequest(
-        `${API_BASE}/api/admin/orders/${encodeURIComponent(
+      await apiRequest(
+        `/api/admin/orders/${encodeURIComponent(
           orderId
-        )}/${action}`,
+        )}/payment-received`,
         {
           method: "POST",
-
-          headers: {
-            "X-Admin-Secret": secret,
-          },
-
-          body:
-            action === "reject"
-              ? JSON.stringify({
-                  reason:
-                    "Pago no confirmado por el administrador.",
-                })
-              : JSON.stringify({}),
         }
       );
 
-      if (!data?.ok) {
-        throw new Error(
-          data?.error ||
-            "La operación no pudo completarse."
-        );
-      }
-
-      setMessage(successText);
+      setMessage(
+        "✅ Pago marcado como recibido."
+      );
 
       await loadOrders();
     } catch (err) {
+      console.error(err);
+
       setError(
         err.message ||
-          "No se pudo completar la operación."
+          "No se pudo confirmar el pago."
       );
     } finally {
-      setWorkingId("");
+      setLoading(false);
     }
   }
 
-  async function authorize(orderId) {
-    const confirmed =
-      window.confirm(
-        "¿Confirmas que ya recibiste el pago y quieres gastar el saldo de Shop2TopUp para realizar esta recarga?"
+  async function authorizeRecharge(orderId) {
+    if (
+      !window.confirm(
+        "⚠️ ATENCIÓN\n\nEsto enviará la recarga a Shop2TopUp.\n\n¿Confirmas que quieres autorizarla?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      await apiRequest(
+        `/api/admin/orders/${encodeURIComponent(
+          orderId
+        )}/authorize`,
+        {
+          method: "POST",
+        }
       );
 
-    if (!confirmed) return;
-
-    await performAction(
-      orderId,
-      "authorize",
-      "🚀 Recarga autorizada y enviada a Shop2TopUp."
-    );
-  }
-
-  async function reject(orderId) {
-    const confirmed =
-      window.confirm(
-        "¿Quieres rechazar este pedido?"
+      setMessage(
+        "🚀 Recarga enviada correctamente a Shop2TopUp."
       );
 
-    if (!confirmed) return;
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
 
-    await performAction(
-      orderId,
-      "reject",
-      "Pedido rechazado."
-    );
+      setError(
+        err.message ||
+          "No se pudo autorizar la recarga."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (!loggedIn) {
-    return (
-      <div className="admin-page">
-        <style>{styles}</style>
+  async function rejectOrder(orderId) {
+    const reason =
+      window.prompt(
+        "Motivo del rechazo:",
+        "Pago no confirmado."
+      );
 
-        <div className="login-card">
-          <div className="logo">
-            💎
+    if (reason === null) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      await apiRequest(
+        `/api/admin/orders/${encodeURIComponent(
+          orderId
+        )}/reject`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            reason:
+              reason.trim() ||
+              "Pago no confirmado.",
+          }),
+        }
+      );
+
+      setMessage(
+        "❌ Pedido rechazado."
+      );
+
+      await loadOrders();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err.message ||
+          "No se pudo rechazar el pedido."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem(
+      "admin_secret"
+    );
+
+    setSecret("");
+    setOrders([]);
+    setLoggedIn(false);
+    setError("");
+    setMessage("");
+  }
+
+  useEffect(() => {
+    const savedSecret =
+      localStorage.getItem(
+        "admin_secret"
+      );
+
+    if (savedSecret) {
+      setSecret(savedSecret);
+    }
+  }, []);
+
+  return (
+    <div className="admin-page">
+      <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          font-family:
+            Arial,
+            Helvetica,
+            sans-serif;
+          background: #f1f5f9;
+          color: #172033;
+        }
+
+        button,
+        input {
+          font: inherit;
+        }
+
+        button {
+          cursor: pointer;
+        }
+
+        button:disabled {
+          opacity: .6;
+          cursor: not-allowed;
+        }
+
+        .admin-page {
+          min-height: 100vh;
+          padding: 20px;
+        }
+
+        .admin-container {
+          width: min(
+            100%,
+            1100px
+          );
+          margin: 0 auto;
+        }
+
+        .header {
+          background:
+            linear-gradient(
+              135deg,
+              #111827,
+              #1e3a8a
+            );
+          color: white;
+          padding: 25px;
+          border-radius: 20px;
+          margin-bottom: 20px;
+          box-shadow:
+            0 12px 35px
+            rgba(15,23,42,.15);
+        }
+
+        .header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+        }
+
+        .header h1 {
+          margin: 0;
+          font-size: 25px;
+        }
+
+        .header p {
+          margin: 7px 0 0;
+          opacity: .8;
+        }
+
+        .logout {
+          border: none;
+          border-radius: 10px;
+          padding: 10px 14px;
+          background: #ef4444;
+          color: white;
+          font-weight: 700;
+        }
+
+        .login-card {
+          max-width: 500px;
+          margin: 50px auto;
+          background: white;
+          padding: 30px;
+          border-radius: 20px;
+          box-shadow:
+            0 15px 45px
+            rgba(15,23,42,.1);
+        }
+
+        .login-card h2 {
+          margin-top: 0;
+        }
+
+        .login-card p {
+          color: #64748b;
+          line-height: 1.5;
+        }
+
+        .secret-input {
+          width: 100%;
+          padding: 15px;
+          border:
+            2px solid #e2e8f0;
+          border-radius: 12px;
+          outline: none;
+          margin-bottom: 12px;
+        }
+
+        .secret-input:focus {
+          border-color: #2563eb;
+        }
+
+        .login-button,
+        .refresh-button {
+          width: 100%;
+          border: none;
+          border-radius: 12px;
+          padding: 14px;
+          background: #2563eb;
+          color: white;
+          font-weight: 800;
+        }
+
+        .refresh-button {
+          width: auto;
+          padding:
+            11px 16px;
+        }
+
+        .alert {
+          padding: 14px;
+          border-radius: 12px;
+          margin-bottom: 15px;
+          font-weight: 700;
+        }
+
+        .error {
+          background: #fef2f2;
+          color: #b91c1c;
+          border:
+            1px solid #fecaca;
+        }
+
+        .success {
+          background: #ecfdf5;
+          color: #047857;
+          border:
+            1px solid #a7f3d0;
+        }
+
+        .toolbar {
+          background: white;
+          padding: 16px;
+          border-radius: 15px;
+          margin-bottom: 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+          box-shadow:
+            0 8px 25px
+            rgba(15,23,42,.06);
+        }
+
+        .count {
+          font-weight: 800;
+        }
+
+        .orders {
+          display: grid;
+          gap: 18px;
+        }
+
+        .order {
+          background: white;
+          border-radius: 18px;
+          padding: 20px;
+          box-shadow:
+            0 10px 30px
+            rgba(15,23,42,.07);
+        }
+
+        .order-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 15px;
+          align-items: flex-start;
+          border-bottom:
+            1px solid #e5e7eb;
+          padding-bottom: 15px;
+          margin-bottom: 15px;
+        }
+
+        .order-id {
+          font-size: 12px;
+          color: #64748b;
+          word-break: break-all;
+        }
+
+        .status {
+          padding: 8px 11px;
+          border-radius: 10px;
+          background: #f1f5f9;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: right;
+        }
+
+        .order-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, 1fr);
+          gap: 12px;
+        }
+
+        .info {
+          background: #f8fafc;
+          border-radius: 11px;
+          padding: 12px;
+        }
+
+        .info span {
+          display: block;
+          color: #64748b;
+          font-size: 12px;
+          margin-bottom: 5px;
+        }
+
+        .info strong {
+          display: block;
+          word-break: break-word;
+        }
+
+        .amount {
+          color: #2563eb;
+          font-size: 18px;
+        }
+
+        .actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 18px;
+          padding-top: 18px;
+          border-top:
+            1px solid #e5e7eb;
+        }
+
+        .action {
+          border: none;
+          border-radius: 11px;
+          padding: 12px 15px;
+          color: white;
+          font-weight: 800;
+        }
+
+        .payment-button {
+          background: #16a34a;
+        }
+
+        .authorize-button {
+          background: #2563eb;
+        }
+
+        .reject-button {
+          background: #dc2626;
+        }
+
+        .empty {
+          background: white;
+          border-radius: 18px;
+          padding: 45px 20px;
+          text-align: center;
+          color: #64748b;
+        }
+
+        .loading {
+          text-align: center;
+          padding: 30px;
+          color: #64748b;
+        }
+
+        @media (max-width: 600px) {
+          .admin-page {
+            padding: 10px;
+          }
+
+          .header {
+            padding: 18px;
+          }
+
+          .header-row {
+            align-items: flex-start;
+          }
+
+          .header h1 {
+            font-size: 21px;
+          }
+
+          .order-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .order-top {
+            flex-direction: column;
+          }
+
+          .status {
+            text-align: left;
+          }
+
+          .toolbar {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .refresh-button {
+            width: 100%;
+          }
+
+          .action {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      {!loggedIn ? (
+        <div className="admin-container">
+          <div className="login-card">
+            <h2>🔐 Panel de administración</h2>
+
+            <p>
+              Introduce tu ADMIN_SECRET para
+              acceder a los pedidos de
+              Recargas Diamantes.
+            </p>
+
+            {error && (
+              <div className="alert error">
+                ❌ {error}
+              </div>
+            )}
+
+            <input
+              className="secret-input"
+              type="password"
+              value={secret}
+              onChange={(e) =>
+                setSecret(e.target.value)
+              }
+              placeholder="ADMIN_SECRET"
+              autoComplete="off"
+            />
+
+            <button
+              className="login-button"
+              onClick={loadOrders}
+              disabled={loading}
+            >
+              {loading
+                ? "🔄 Conectando..."
+                : "🔐 Entrar al panel"}
+            </button>
           </div>
+        </div>
+      ) : (
+        <div className="admin-container">
+          <header className="header">
+            <div className="header-row">
+              <div>
+                <h1>
+                  💎 Recargas Diamantes
+                </h1>
 
-          <h1>
-            Panel de administración
-          </h1>
+                <p>
+                  Panel de administración
+                </p>
+              </div>
 
-          <p>
-            Recargas Diamantes
-          </p>
+              <button
+                className="logout"
+                onClick={logout}
+              >
+                Salir
+              </button>
+            </div>
+          </header>
 
           {error && (
             <div className="alert error">
@@ -338,240 +679,105 @@ export default function Admin() {
             </div>
           )}
 
-          <form onSubmit={login}>
-            <label>
-              Clave de administrador
-            </label>
+          {message && (
+            <div className="alert success">
+              {message}
+            </div>
+          )}
 
-            <input
-              type="password"
-              value={secret}
-              onChange={(event) =>
-                setSecret(
-                  event.target.value
-                )
-              }
-              placeholder="Introduce tu clave"
-              autoComplete="current-password"
-            />
+          <div className="toolbar">
+            <span className="count">
+              📋 Pedidos: {orders.length}
+            </span>
 
             <button
-              className="primary"
-              type="submit"
+              className="refresh-button"
+              onClick={loadOrders}
               disabled={loading}
             >
               {loading
-                ? "🔄 Entrando..."
-                : "🔐 Entrar al panel"}
+                ? "🔄 Cargando..."
+                : "🔄 Actualizar"}
             </button>
-          </form>
-
-          <button
-            className="link-button"
-            onClick={goStore}
-            type="button"
-          >
-            ← Volver a la tienda
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="admin-page">
-      <style>{styles}</style>
-
-      <header className="admin-header">
-        <div>
-          <div className="eyebrow">
-            💎 RECARGAS DIAMANTES
           </div>
 
-          <h1>
-            Panel de pedidos
-          </h1>
-
-          <p>
-            Confirma pagos y autoriza
-            las recargas.
-          </p>
-        </div>
-
-        <div className="header-actions">
-          <button
-            className="secondary"
-            onClick={loadOrders}
-            disabled={loading}
-          >
-            {loading
-              ? "🔄 Actualizando..."
-              : "🔄 Actualizar"}
-          </button>
-
-          <button
-            className="danger-outline"
-            onClick={logout}
-          >
-            Salir
-          </button>
-        </div>
-      </header>
-
-      <main className="admin-container">
-
-        {error && (
-          <div className="alert error">
-            ❌ {error}
-          </div>
-        )}
-
-        {message && (
-          <div className="alert success">
-            {message}
-          </div>
-        )}
-
-        <div className="stats">
-
-          <div className="stat">
-            <span>
-              🟡 Pendientes de pago
-            </span>
-
-            <strong>
-              {pendingCount}
-            </strong>
-          </div>
-
-          <div className="stat">
-            <span>
-              🟢 Pagos recibidos
-            </span>
-
-            <strong>
-              {paymentReceivedCount}
-            </strong>
-          </div>
-
-          <div className="stat">
-            <span>
-              🔵 En proceso
-            </span>
-
-            <strong>
-              {activeCount}
-            </strong>
-          </div>
-
-        </div>
-
-        <div className="toolbar">
-          <strong>
-            {orders.length} pedido
-            {orders.length === 1
-              ? ""
-              : "s"}
-          </strong>
-
-          <span>
-            {lastRefresh
-              ? `Última actualización: ${lastRefresh}`
-              : ""}
-          </span>
-        </div>
-
-        {orders.length === 0 ? (
-          <div className="empty">
-            <div>
-              📭
+          {loading && orders.length === 0 ? (
+            <div className="loading">
+              🔄 Cargando pedidos...
             </div>
+          ) : orders.length === 0 ? (
+            <div className="empty">
+              <h2>
+                📭 No hay pedidos
+              </h2>
 
-            <h2>
-              No hay pedidos
-            </h2>
-
-            <p>
-              Cuando un cliente cree
-              un pedido aparecerá aquí.
-            </p>
-          </div>
-        ) : (
-          <div className="orders">
-
-            {orders.map((order) => {
-
-              const isWorking =
-                workingId.endsWith(
-                  `:${order.order_id}`
-                );
-
-              const currentAction =
-                workingId.split(":")[0];
-
-              return (
-                <article
-                  className="order-card"
+              <p>
+                Cuando un cliente realice
+                un pedido aparecerá aquí.
+              </p>
+            </div>
+          ) : (
+            <div className="orders">
+              {orders.map((order) => (
+                <div
+                  className="order"
                   key={order.order_id}
                 >
-
                   <div className="order-top">
-
                     <div>
-                      <span className="order-label">
-                        PEDIDO
-                      </span>
+                      <strong>
+                        🧾 Pedido
+                      </strong>
 
-                      <code>
+                      <div className="order-id">
                         {order.order_id}
-                      </code>
+                      </div>
                     </div>
 
-                    <span className="status">
-                      {STATUS_LABELS[
+                    <div className="status">
+                      {getStatusLabel(
                         order.status
-                      ] ||
-                        order.status}
-                    </span>
-
+                      )}
+                    </div>
                   </div>
 
                   <div className="order-grid">
-
-                    <div>
+                    <div className="info">
                       <span>
                         🎮 Juego
                       </span>
 
                       <strong>
-                        {gameLabel(order)}
+                        {order.game_name ||
+                          order.game ||
+                          "—"}
                       </strong>
                     </div>
 
-                    <div>
+                    <div className="info">
                       <span>
                         💎 Paquete
                       </span>
 
                       <strong>
-                        {packageLabel(
-                          order
-                        )}
+                        {order.package ||
+                          "—"}
                       </strong>
                     </div>
 
-                    <div>
+                    <div className="info">
                       <span>
                         👤 ID jugador
                       </span>
 
                       <strong>
-                        {order.player_id}
+                        {order.player_id ||
+                          "—"}
                       </strong>
                     </div>
 
                     {order.zone_id && (
-                      <div>
+                      <div className="info">
                         <span>
                           🆔 Zone ID
                         </span>
@@ -583,7 +789,7 @@ export default function Admin() {
                     )}
 
                     {order.player_name && (
-                      <div>
+                      <div className="info">
                         <span>
                           👑 Nombre
                         </span>
@@ -594,31 +800,32 @@ export default function Admin() {
                       </div>
                     )}
 
-                    <div>
+                    <div className="info">
                       <span>
-                        💳 Pago
+                        💳 Método de pago
                       </span>
 
                       <strong>
-                        {order.payment_method}
+                        {order.payment_method ||
+                          "—"}
                       </strong>
                     </div>
 
-                    <div>
+                    <div className="info">
                       <span>
                         💰 Total
                       </span>
 
-                      <strong className="money">
-                        {formatMoney(
+                      <strong className="amount">
+                        {formatAmount(
                           order
                         )}
                       </strong>
                     </div>
 
-                    <div>
+                    <div className="info">
                       <span>
-                        🕐 Creado
+                        🕐 Fecha
                       </span>
 
                       <strong>
@@ -627,587 +834,79 @@ export default function Admin() {
                         )}
                       </strong>
                     </div>
-
                   </div>
 
-                  {order.recharge_error && (
-                    <div className="error-box">
-                      <strong>
-                        Error de recarga:
-                      </strong>{" "}
-                      {order.recharge_error}
-                    </div>
-                  )}
-
                   {order.provider_order_id && (
-                    <div className="provider-id">
-                      Orden Shop2TopUp:{" "}
-                      <code>
-                        {order.provider_order_id}
-                      </code>
+                    <div
+                      className="info"
+                      style={{
+                        marginTop: "12px",
+                      }}
+                    >
+                      <span>
+                        Shop2TopUp
+                        Order ID
+                      </span>
+
+                      <strong>
+                        {
+                          order.provider_order_id
+                        }
+                      </strong>
                     </div>
                   )}
 
                   <div className="actions">
-
                     {order.status ===
                       "PENDING_PAYMENT" && (
                       <>
                         <button
-                          className="success-button"
-                          disabled={
-                            isWorking
-                          }
+                          className="action payment-button"
                           onClick={() =>
-                            performAction(
-                              order.order_id,
-                              "payment-received",
-                              "✅ Pago marcado como recibido."
-                            )
-                          }
-                        >
-                          {isWorking &&
-                          currentAction ===
-                            "payment-received"
-                            ? "⏳ Procesando..."
-                            : "✅ PAGO RECIBIDO"}
-                        </button>
-
-                        <button
-                          className="reject-button"
-                          disabled={
-                            isWorking
-                          }
-                          onClick={() =>
-                            reject(
+                            markPaymentReceived(
                               order.order_id
                             )
                           }
+                          disabled={loading}
                         >
-                          {isWorking &&
-                          currentAction ===
-                            "reject"
-                            ? "⏳..."
-                            : "❌ RECHAZAR"}
+                          ✅ Pago recibido
+                        </button>
+
+                        <button
+                          className="action reject-button"
+                          onClick={() =>
+                            rejectOrder(
+                              order.order_id
+                            )
+                          }
+                          disabled={loading}
+                        >
+                          ❌ Rechazar
                         </button>
                       </>
                     )}
 
                     {order.status ===
                       "PAYMENT_RECEIVED" && (
-                      <>
-                        <button
-                          className="authorize-button"
-                          disabled={
-                            isWorking
-                          }
-                          onClick={() =>
-                            authorize(
-                              order.order_id
-                            )
-                          }
-                        >
-                          {isWorking &&
-                          currentAction ===
-                            "authorize"
-                            ? "⏳ Enviando..."
-                            : "🚀 AUTORIZAR RECARGA"}
-                        </button>
-
-                        <button
-                          className="reject-button"
-                          disabled={
-                            isWorking
-                          }
-                          onClick={() =>
-                            reject(
-                              order.order_id
-                            )
-                          }
-                        >
-                          {isWorking &&
-                          currentAction ===
-                            "reject"
-                            ? "⏳..."
-                            : "❌ RECHAZAR"}
-                        </button>
-                      </>
+                      <button
+                        className="action authorize-button"
+                        onClick={() =>
+                          authorizeRecharge(
+                            order.order_id
+                          )
+                        }
+                        disabled={loading}
+                      >
+                        🚀 Autorizar recarga
+                      </button>
                     )}
-
-                    {order.status ===
-                      "RECHARGE_PROCESSING" && (
-                      <div className="waiting">
-                        🔵 La recarga está siendo
-                        procesada.
-                      </div>
-                    )}
-
-                    {order.status ===
-                      "RECHARGE_SUBMITTED" && (
-                      <div className="waiting">
-                        🔵 Recarga enviada a
-                        Shop2TopUp.
-                      </div>
-                    )}
-
-                    {order.status ===
-                      "RECHARGE_FAILED" && (
-                      <div className="waiting error-waiting">
-                        🔴 La recarga falló.
-                        Revisa el error antes
-                        de intentar nuevamente.
-                      </div>
-                    )}
-
                   </div>
-
-                </article>
-              );
-            })}
-
-          </div>
-        )}
-
-        <button
-          className="store-button"
-          onClick={goStore}
-          type="button"
-        >
-          ← Volver a la tienda
-        </button>
-
-      </main>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-const styles = `
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family:
-    Arial,
-    Helvetica,
-    sans-serif;
-  background: #f1f5f9;
-  color: #172033;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: .6;
-}
-
-.admin-page {
-  min-height: 100vh;
-  padding-bottom: 50px;
-}
-
-.admin-header {
-  background:
-    linear-gradient(
-      135deg,
-      #111827,
-      #1e3a8a
-    );
-  color: white;
-  padding: 28px
-    max(20px, calc((100% - 1100px) / 2));
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 1.5px;
-  opacity: .8;
-  font-weight: 800;
-}
-
-.admin-header h1 {
-  margin: 7px 0;
-  font-size: 30px;
-}
-
-.admin-header p {
-  margin: 0;
-  opacity: .85;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.admin-container {
-  width:
-    min(100% - 24px, 1100px);
-  margin: 24px auto;
-}
-
-.login-card {
-  width:
-    min(calc(100% - 30px), 430px);
-  margin: 60px auto;
-  background: white;
-  padding: 30px;
-  border-radius: 24px;
-  box-shadow:
-    0 15px 50px
-    rgba(15,23,42,.1);
-  text-align: center;
-}
-
-.login-card .logo {
-  width: 70px;
-  height: 70px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto 14px;
-  border-radius: 20px;
-  background: #eff6ff;
-  font-size: 38px;
-}
-
-.login-card h1 {
-  margin: 0 0 8px;
-}
-
-.login-card p {
-  margin: 0 0 25px;
-  color: #64748b;
-}
-
-.login-card form {
-  text-align: left;
-}
-
-label {
-  display: block;
-  font-weight: 800;
-  margin-bottom: 7px;
-}
-
-input {
-  width: 100%;
-  border:
-    2px solid #e2e8f0;
-  border-radius: 13px;
-  padding: 15px;
-  outline: none;
-  margin-bottom: 14px;
-}
-
-input:focus {
-  border-color: #2563eb;
-}
-
-.primary,
-.secondary,
-.danger-outline,
-.link-button,
-.store-button {
-  border: 0;
-  border-radius: 12px;
-  padding: 13px 16px;
-  font-weight: 800;
-}
-
-.primary {
-  width: 100%;
-  background: #2563eb;
-  color: white;
-}
-
-.secondary {
-  background: white;
-  color: #1d4ed8;
-}
-
-.danger-outline {
-  background:
-    rgba(255,255,255,.12);
-  color: white;
-  border:
-    1px solid
-    rgba(255,255,255,.3);
-}
-
-.link-button {
-  margin-top: 18px;
-  background: transparent;
-  color: #2563eb;
-}
-
-.alert {
-  padding: 14px 16px;
-  border-radius: 13px;
-  margin-bottom: 18px;
-  font-weight: 700;
-}
-
-.alert.error {
-  background: #fef2f2;
-  color: #b91c1c;
-  border:
-    1px solid #fecaca;
-}
-
-.alert.success {
-  background: #ecfdf5;
-  color: #047857;
-  border:
-    1px solid #a7f3d0;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns:
-    repeat(3,1fr);
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.stat {
-  background: white;
-  padding: 18px;
-  border-radius: 17px;
-  box-shadow:
-    0 5px 25px
-    rgba(15,23,42,.05);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.stat span {
-  color: #64748b;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.stat strong {
-  font-size: 28px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 10px 2px 15px;
-  color: #64748b;
-}
-
-.orders {
-  display: grid;
-  gap: 16px;
-}
-
-.order-card {
-  background: white;
-  border-radius: 20px;
-  padding: 20px;
-  box-shadow:
-    0 8px 35px
-    rgba(15,23,42,.07);
-}
-
-.order-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 15px;
-  padding-bottom: 15px;
-  border-bottom:
-    1px solid #e5e7eb;
-}
-
-.order-label {
-  display: block;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  margin-bottom: 5px;
-}
-
-code {
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  font-size: 12px;
-  word-break: break-all;
-}
-
-.status {
-  padding: 8px 11px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.order-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(2,1fr);
-  gap: 12px;
-  padding: 18px 0;
-}
-
-.order-grid div {
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.order-grid span {
-  display: block;
-  color: #64748b;
-  font-size: 12px;
-  margin-bottom: 5px;
-}
-
-.order-grid strong {
-  display: block;
-  word-break: break-word;
-}
-
-.money {
-  color: #2563eb;
-  font-size: 18px;
-}
-
-.provider-id {
-  margin-bottom: 14px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.error-box {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 14px;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.actions button {
-  border: 0;
-  border-radius: 13px;
-  padding: 14px 16px;
-  font-weight: 900;
-  flex: 1;
-  min-width: 180px;
-}
-
-.success-button {
-  background: #16a34a;
-  color: white;
-}
-
-.authorize-button {
-  background: #2563eb;
-  color: white;
-}
-
-.reject-button {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.waiting {
-  width: 100%;
-  padding: 13px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-radius: 12px;
-  font-weight: 700;
-}
-
-.error-waiting {
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.empty {
-  background: white;
-  border-radius: 20px;
-  padding: 45px 20px;
-  text-align: center;
-  color: #64748b;
-}
-
-.empty div {
-  font-size: 45px;
-}
-
-.empty h2 {
-  color: #172033;
-  margin: 10px 0;
-}
-
-.store-button {
-  display: block;
-  margin: 24px auto 0;
-  background: white;
-  color: #2563eb;
-  box-shadow:
-    0 5px 20px
-    rgba(15,23,42,.05);
-}
-
-@media (max-width: 700px) {
-
-  .admin-header {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 24px 18px;
-  }
-
-  .header-actions {
-    justify-content: stretch;
-  }
-
-  .header-actions button {
-    flex: 1;
-  }
-
-  .stats {
-    grid-template-columns: 1fr;
-  }
-
-  .order-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .toolbar {
-    flex-direction: column;
-    gap: 5px;
-  }
-}
-`;
